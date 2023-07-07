@@ -1,0 +1,72 @@
+phs = ['AP',
+ 'SP',
+ 'a',
+ 'ai',
+ 'an',
+ 'ang',
+ 'ao',
+ 'b',
+ 'c',
+ 'ch',
+ 'd',
+ 'e',
+ 'ei',
+ 'en',
+ 'eng',
+ 'er',
+ 'f',
+ 'g',
+ 'h',
+ 'i',
+ 'ia',
+ 'ian',
+ 'iang',
+ 'iao',
+ 'ie',
+ 'in',
+ 'ing',
+ 'iong',
+ 'iu',
+ 'j',
+ 'k',
+ 'l',
+ 'm',
+ 'n',
+ 'o',
+ 'ong',
+ 'ou',
+ 'p',
+ 'q',
+ 'r',
+ 's',
+ 'sh',
+ 't',
+ 'u',
+ 'ua',
+ 'uai',
+ 'uan',
+ 'uang',
+ 'ui',
+ 'un',
+ 'uo',
+ 'v',
+ 'van',
+ 've',
+ 'vn',
+ 'w',
+ 'x',
+ 'y',
+ 'z',
+ 'zh']
+
+def get_initials_and_finals():
+    initials = []
+    finals = []
+    for ph in phs:
+        if ph in ('AP', 'SP'):
+            continue
+        elif ph[0] in ('a', 'e', 'i', 'o', 'u', 'v'):
+            finals.append(ph)
+        else:
+            initials.append(ph)
+    return initials, finals

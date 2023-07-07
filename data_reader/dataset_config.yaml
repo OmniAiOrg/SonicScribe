@@ -1,0 +1,33 @@
+BaseReader:
+  name: 
+  identifier:
+  summary: 
+  category: 
+  license: 
+  website: 
+  path: 
+
+Openslr33:
+  name: AIShell-1
+  identifier: SLR33
+  summary: Mandarin data, provided by Beijing Shell Shell Technology Co.,Ltd
+  category: Speech
+  license: Apache License v.2.0
+  website: https://www.openslr.org/33
+  path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/33-Aishell/data_aishell/
+
+OpenCpop:
+  name: OpenCpop
+  identifier: OCPOP
+  summary: A publicly available high-quality Mandarin singing corpus
+  category: Singing
+  license: CC BY-NC-ND 4.0
+  website: https://wenet.org.cn/opencpop/
+  path: /mnt/private_cq/dataset/opencpop
+  NONE_TEXT: NO
+  SLUR_TEXT: SL
+  AUDIO_MAX_LENGTH: 480000
+  TEXT_MAX_LENGTH: 120
+  SAMPLE_RATE: 16000
+  SEED: 3407
+
