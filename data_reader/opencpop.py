@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Tuple
 from utils.ph import get_initials_and_finals
 from utils.naive_tokenizer import NaiveTokenizer
 from utils.note import notes
+from utils.general_dataloader import SonicData
+from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE, get_tokenizer
 
 class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
@@ -33,16 +35,12 @@ class OpenCpop(BaseReader):
         self.finals_tokenizer = NaiveTokenizer(finals+['AP','SP'], '<|final|>')
         self.note_tokenizer = NaiveTokenizer(notes, '<|note|>')
         self.slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')
+        self.word_tokenizer = get_tokenizer(True, language='zh', task='transcribe')
         
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'
         data = self.parse_txt(self.path + f'/{dataset_txt}.txt')
         return self.get_audio_file_list(data, self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'{dataset_txt}_audio_opencpop')
-        
-    def get_transcripts_path_list(self):
-        dataset_dir = Path(self.path)
-        transcripts_path_list = list(dataset_dir.glob("wavs/*"))
-        return transcripts_path_list
     
     def parse_line(self, id, text, phoneme, note, note_duration, phoneme_duration, slur):
         none_text = self.NONE_TEXT
@@ -146,7 +144,7 @@ class OpenCpop(BaseReader):
         audio_dir, text, initials, finals, note, note_duration, slur = pair
 
         # audio
-        audio = self.load_wave(audio_dir, sample_rate=self.sample_rate)
+        audio = self.load_wave(audio_dir, sample_rate=self.SAMPLE_RATE)
         audio = audio.flatten()
         assert audio.shape[-1] < whisper.audio.N_SAMPLES # or it will be cut
         audio = whisper.pad_or_trim(audio)
@@ -169,25 +167,27 @@ class OpenCpop(BaseReader):
 
 
         # text, phoneme, note, note_duration, slur
-        return {
-            "text": text,
-            "initials": initials,
-            "initials_label": initials_label,
-            "finals": finals,
-            "finals_label": finals_label,
-            "note": note,
-            "note_label": note_label,
-            "note_duration": note_duration,
-            "note_duration_label": note_duration_label,
-            "slur": slur,
-            "slur_label": slur_label,
-            "mel": mel
-        }
+        return SonicData(
+            mel, 
+            words=[word for word in text],
+            original_text=text,
+            initials=initials,
+            initials_label=initials_label,
+            finals=finals,
+            finals_label=finals_label,
+            note=note,
+            note_label=note_label,
+            note_duration=note_duration,
+            note_duration_label=note_duration_label,
+            slur=slur,
+            slur_label=slur_label,
+        )
         
     
     
 
 if __name__ == '__main__':
-    openslr_33_train = OpenCpop()
-    openslr_33_test = OpenCpop(train=False)
+    oc_train = OpenCpop()
+    oc_test = OpenCpop(train=False)
+    print(oc_test[0])
     

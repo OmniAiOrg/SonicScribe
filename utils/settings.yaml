@@ -1,0 +1,2 @@
+whisper:
+  checkpoint: /mnt/private_cq/whisper_checkpoint

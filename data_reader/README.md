@@ -1,10 +1,10 @@
 
 
-The following is an example of the `get_item()` method for `data_reader`:
+The following is an example output of the `get_item()` method for `data_reader`:
 
 ```Python
         return {
-            "text": text,
+            "text": text, # original text
             "initials": initials,
             "initials_label": initials_label,
             "finals": finals,
