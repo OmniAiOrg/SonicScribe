@@ -24,7 +24,7 @@ class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp_v3'
+        self.pickle_path = self.config['path']+'/temp'
         self.audio_transcript_pair_list
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
         self.SLUR_TEXT = str(self.config['SLUR_TEXT'])
@@ -44,7 +44,23 @@ class OpenCpop(BaseReader):
         data = self.parse_txt(self.path + f'/{dataset_txt}.txt')
         return self.get_audio_file_list(data, self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'{dataset_txt}_audio_opencpop')
     
+    def fix_line(self, id, text, phoneme, note, note_duration, phoneme_duration, slur):
+        # 修复官方数据集的错误，以下是一些人工发现的错误
+        # if id == '2099003690':
+        #     print('slur2099003690', slur)
+        if id == '2099003690' and slur == '0 0 0 0 0 0 0 0 0 0 1 0 0 0\n':
+            slur = '0 0 0 0 0 0 0 1 0 0 1 0 0 0\n'
+        elif id == '2003000102' and text == '如果云层是天空的一封信':
+            text = '如果层是天空的一封信'
+        elif id == '2034001289' and slur == '0 0 0 0 0 0 0 0 0 0 0 0 0\n':
+            slur = '0 0 0 0 0 0 0 0 0 0 1 0 0\n'
+        elif id == '2094003515' and text == '直到和你做了多年朋友才明白我的眼泪':
+            text = '直到和你做了多年朋友才明白的眼泪'
+        return id, text, phoneme, note, note_duration, phoneme_duration, slur
+    
     def parse_line(self, id, text, phoneme, note, note_duration, phoneme_duration, slur):
+        id, text, phoneme, note, note_duration, phoneme_duration, slur = \
+            self.fix_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
         none_text = self.NONE_TEXT
         slur_text = self.SLUR_TEXT
         # 在此修改格式，使满足元辅音区分后共同预测，简化预测过程
@@ -88,6 +104,7 @@ class OpenCpop(BaseReader):
                     assert note_duration[i] == note_duration[i-1]
                     hanzi_initials.append(phoneme[i-1])
                     hanzi_finals.append(p)
+                    assert hanzi_words_idx < len(text), f'{hanzi_words}, {hanzi_initials}'
                     hanzi_words.append(text[hanzi_words_idx])
                     hanzi_words_idx += 1
                 elif phoneme[i-1] in finals:
@@ -115,14 +132,20 @@ class OpenCpop(BaseReader):
                 
     def parse_txt(self, file_name):
         data = []
+        except_counter = 0
         with open(file_name, 'r') as f:
             for line in f:
                 if len(line) < 10:
                     continue
                 id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
-                id, text, initials, finals, note, note_duration, slur, hanzi_words = self.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
-                data.append((id, text, initials, finals, note, note_duration, slur, hanzi_words))
+                try:
+                    id, text, initials, finals, note, note_duration, slur, hanzi_words = self.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
+                    data.append((id, text, initials, finals, note, note_duration, slur, hanzi_words))
+                except AssertionError as e:
+                    except_counter += 1
+                    print('parse_txt', repr(e), line)
                 # text not matter, just dor debug
+        print(f'There are {except_counter} exceptions in total when process data')
         return data
         
     def get_audio_file_list(self, data, text_max_length=120, audio_max_sample_length=480000, sample_rate=16000, save_name = None):
@@ -194,16 +217,9 @@ class OpenCpop(BaseReader):
     
 
 if __name__ == '__main__':
-    # oc_train = OpenCpop()
+    oc_train = OpenCpop()
     oc_test = OpenCpop(train=False)
-    # field_names = [field.name for field in dataclasses.fields(SonicData)]
-    # for fn in field_names:
-    #     print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
+    field_names = [field.name for field in dataclasses.fields(SonicData)]
+    for fn in field_names:
+        print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
     
-    
-    line = '2003000102|如果云层是天空的一封信|r u SP g uo uo c eng sh i t ian k ong d e y i f eng x in in SP AP|A4 A4 rest F4 F4 G4 F4 F4 F4 F4 A4 A4 F4 F4 F4 F4 A4 A4 F4 F4 G4 G4 E4 rest rest|0.448380 0.448380 0.101640 0.164300 0.164300 0.343380 0.398490 0.398490 0.312600 0.312600 0.419180 0.419180 0.291000 0.291000 0.166250 0.166250 0.359290 0.359290 0.268160 0.268160 0.449950 0.449950 1.233690 0.325870 0.564150|0.14206 0.30632 0.10164 0.03859 0.12571 0.34338 0.18389 0.2146 0.16473 0.14787 0.11004 0.30914 0.08007 0.21093 0.03995 0.1263 0.11724 0.24205 0.12254 0.14562 0.26 0.18995 1.23369 0.32587 0.56415|0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0'
-    id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
-    id, text, initials, finals, note, note_duration, slur, hanzi_words = oc_test.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
-    print(hanzi_words, text, initials)
-    
-    # TODO: 错误的编码：AssertionError: text has 11 chars, but only 10 added. hanzi_words=['如', 'SP', '果', 'SL', '云', '层', '是', '天', '空', '的', '一', '封', 'SL', 'SP', 'AP'], text=如果云层是天空的一封信, hanzi_initials=['r', 'SP', 'g', 'SL', 'c', 'sh', 't', 'k', 'd', 'y', 'f', 'x', 'SL', 'SP', 'AP']

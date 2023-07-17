@@ -6,7 +6,6 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 from utils.tokenizers import *
 
-print('globals()', globals().keys())
 @dataclass(frozen=True)
 class SonicData:
     mel: Tensor
