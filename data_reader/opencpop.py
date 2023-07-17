@@ -24,7 +24,7 @@ class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp_v2'
+        self.pickle_path = self.config['path']+'/temp_v3'
         self.audio_transcript_pair_list
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
         self.SLUR_TEXT = str(self.config['SLUR_TEXT'])
@@ -99,7 +99,7 @@ class OpenCpop(BaseReader):
                     elif slur[i] == '1': 
                         hanzi_initials.append(slur_text)
                         hanzi_finals.append(p)
-                        hanzi_words.append('~')
+                        hanzi_words.append('SL')
                 else:
                     assert phoneme[i-1] in ['AP', 'SP'], f'phoneme[i-1]={phoneme[i-1]} not in AP/SP'
                     assert slur[i] == '0', 'slur[i] can only be 0'
@@ -110,7 +110,7 @@ class OpenCpop(BaseReader):
             hanzi_note.append(note[i])
             hanzi_note_duration.append(note_duration[i])
             hanzi_slur.append(slur[i])
-        assert hanzi_words_idx == len(text), f'text has {len(text)} chars, but only {hanzi_words_idx} added. hanzi_words={hanzi_words}, text={text}'
+        assert hanzi_words_idx == len(text), f'text has {len(text)} chars, but only {hanzi_words_idx} added. hanzi_words={hanzi_words}, text={text}, hanzi_initials={hanzi_initials}'
         return id, text, hanzi_initials, hanzi_finals, hanzi_note, hanzi_note_duration, hanzi_slur, hanzi_words
                 
     def parse_txt(self, file_name):
@@ -196,13 +196,14 @@ class OpenCpop(BaseReader):
 if __name__ == '__main__':
     # oc_train = OpenCpop()
     oc_test = OpenCpop(train=False)
-    field_names = [field.name for field in dataclasses.fields(SonicData)]
-    for fn in field_names:
-        print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
+    # field_names = [field.name for field in dataclasses.fields(SonicData)]
+    # for fn in field_names:
+    #     print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
     
     
-    # line = '2003000080|如果云层是天空的一封信|r u SP g uo y vn c eng sh i SP t ian k ong d e y i f eng x in in AP|A4 A4 rest F4 F4 G4 G4 F4 F4 F4 F4 rest A4 A4 F4 F4 F4 F4 A4 A4 F4 F4 G4 G4 E4 rest|0.403020 0.403020 0.107000 0.216470 0.216470 0.312410 0.312410 0.410540 0.410540 0.277300 0.277300 0.050330 0.401710 0.401710 0.306500 0.306500 0.217860 0.217860 0.276560 0.276560 0.287320 0.287320 0.641950 0.641950 1.387340 0.552190|0.08094 0.32208 0.107 0.03583 0.18064 0.12885 0.18356 0.17752 0.23302 0.1515 0.1258 0.05033 0.08499 0.31672 0.08773 0.21877 0.05056 0.1673 0.05661 0.21995 0.12472 0.1626 0.20199 0.43996 1.38734 0.55219|0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'
-    # id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
-    # id, text, initials, finals, note, note_duration, slur, hanzi_words = oc_test.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
-    # print(hanzi_words, text, initials)
+    line = '2003000102|如果云层是天空的一封信|r u SP g uo uo c eng sh i t ian k ong d e y i f eng x in in SP AP|A4 A4 rest F4 F4 G4 F4 F4 F4 F4 A4 A4 F4 F4 F4 F4 A4 A4 F4 F4 G4 G4 E4 rest rest|0.448380 0.448380 0.101640 0.164300 0.164300 0.343380 0.398490 0.398490 0.312600 0.312600 0.419180 0.419180 0.291000 0.291000 0.166250 0.166250 0.359290 0.359290 0.268160 0.268160 0.449950 0.449950 1.233690 0.325870 0.564150|0.14206 0.30632 0.10164 0.03859 0.12571 0.34338 0.18389 0.2146 0.16473 0.14787 0.11004 0.30914 0.08007 0.21093 0.03995 0.1263 0.11724 0.24205 0.12254 0.14562 0.26 0.18995 1.23369 0.32587 0.56415|0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0'
+    id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
+    id, text, initials, finals, note, note_duration, slur, hanzi_words = oc_test.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
+    print(hanzi_words, text, initials)
     
+    # TODO: 错误的编码：AssertionError: text has 11 chars, but only 10 added. hanzi_words=['如', 'SP', '果', 'SL', '云', '层', '是', '天', '空', '的', '一', '封', 'SL', 'SP', 'AP'], text=如果云层是天空的一封信, hanzi_initials=['r', 'SP', 'g', 'SL', 'c', 'sh', 't', 'k', 'd', 'y', 'f', 'x', 'SL', 'SP', 'AP']
