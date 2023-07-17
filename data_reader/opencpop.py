@@ -1,5 +1,6 @@
 # https://www.openslr.org/33
 
+import dataclasses
 from data_reader.base_reader import BaseReader
 import torch
 from pathlib import Path
@@ -17,12 +18,13 @@ from utils.naive_tokenizer import NaiveTokenizer
 from utils.note import notes
 from utils.general_dataloader import SonicData
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE, get_tokenizer
+from utils.tokenizers import *
 
 class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp'
+        self.pickle_path = self.config['path']+'/temp_v2'
         self.audio_transcript_pair_list
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
         self.SLUR_TEXT = str(self.config['SLUR_TEXT'])
@@ -30,12 +32,12 @@ class OpenCpop(BaseReader):
         self.TEXT_MAX_LENGTH = int(self.config['TEXT_MAX_LENGTH'])
         self.SAMPLE_RATE = int(self.config['SAMPLE_RATE'])
         self.audio_transcript_pair_list = self.get_dataset(train)
-        initials, finals = get_initials_and_finals()
-        self.initials_tokenizer = NaiveTokenizer(initials+[self.NONE_TEXT, self.SLUR_TEXT]+['AP','SP'], '<|initial|>')
-        self.finals_tokenizer = NaiveTokenizer(finals+['AP','SP'], '<|final|>')
-        self.note_tokenizer = NaiveTokenizer(notes, '<|note|>')
-        self.slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')
-        self.word_tokenizer = get_tokenizer(True, language='zh', task='transcribe')
+        
+        self.initials_tokenizer = initials_tokenizer
+        self.finals_tokenizer = finals_tokenizer
+        self.note_tokenizer = note_tokenizer
+        self.slur_tokenizer = slur_tokenizer
+        self.word_tokenizer = words_tokenizer
         
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'
@@ -57,6 +59,9 @@ class OpenCpop(BaseReader):
         hanzi_note = []
         hanzi_note_duration = []
         hanzi_slur = []
+        hanzi_words = []
+        
+        hanzi_words_idx = 0
         for i in range(len(phoneme)):
             p = phoneme[i]
             assert slur[i] in ['0', '1'], f'slur[i]={slur[i]} not in 0/1, org_slur={org_slur}'
@@ -64,6 +69,7 @@ class OpenCpop(BaseReader):
                 # p in ['AP', 'SP']
                 hanzi_initials.append(p)
                 hanzi_finals.append(p)
+                hanzi_words.append(p)
             elif p in initials:
                 # 元音就一定有辅音，然后跳过等到辅音存储
                 assert i != len(phoneme)-1 and phoneme[i+1] in finals
@@ -76,28 +82,36 @@ class OpenCpop(BaseReader):
                 # 4. 前一个是辅音的辅音，slur，也就是延音
                 # 5. 前一个都不是的辅音，不slur，“AP 啊”
                 # 6. 前一个都不是的辅音，slur，不应该存在
-                if phoneme[i-1] in initials:
+                if phoneme[i-1] in initials: # 1
                     assert slur[i] == '0', 'slur[i] can only be 0'
                     assert note[i] == note[i-1]
                     assert note_duration[i] == note_duration[i-1]
                     hanzi_initials.append(phoneme[i-1])
                     hanzi_finals.append(p)
+                    hanzi_words.append(text[hanzi_words_idx])
+                    hanzi_words_idx += 1
                 elif phoneme[i-1] in finals:
-                    if slur[i] == '0':
+                    if slur[i] == '0': 
                         hanzi_initials.append(none_text)
                         hanzi_finals.append(p)
-                    elif slur[i] == '1':
+                        hanzi_words.append(text[hanzi_words_idx])
+                        hanzi_words_idx += 1
+                    elif slur[i] == '1': 
                         hanzi_initials.append(slur_text)
                         hanzi_finals.append(p)
+                        hanzi_words.append('~')
                 else:
                     assert phoneme[i-1] in ['AP', 'SP'], f'phoneme[i-1]={phoneme[i-1]} not in AP/SP'
                     assert slur[i] == '0', 'slur[i] can only be 0'
                     hanzi_initials.append(none_text)
                     hanzi_finals.append(p)
+                    hanzi_words.append(text[hanzi_words_idx])
+                    hanzi_words_idx += 1
             hanzi_note.append(note[i])
             hanzi_note_duration.append(note_duration[i])
             hanzi_slur.append(slur[i])
-        return id, text, hanzi_initials, hanzi_finals, hanzi_note, hanzi_note_duration, hanzi_slur
+        assert hanzi_words_idx == len(text), f'text has {len(text)} chars, but only {hanzi_words_idx} added. hanzi_words={hanzi_words}, text={text}'
+        return id, text, hanzi_initials, hanzi_finals, hanzi_note, hanzi_note_duration, hanzi_slur, hanzi_words
                 
     def parse_txt(self, file_name):
         data = []
@@ -106,8 +120,8 @@ class OpenCpop(BaseReader):
                 if len(line) < 10:
                     continue
                 id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
-                id, text, initials, finals, note, note_duration, slur = self.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
-                data.append((id, text, initials, finals, note, note_duration, slur))
+                id, text, initials, finals, note, note_duration, slur, hanzi_words = self.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
+                data.append((id, text, initials, finals, note, note_duration, slur, hanzi_words))
                 # text not matter, just dor debug
         return data
         
@@ -120,7 +134,7 @@ class OpenCpop(BaseReader):
         print('Because this is the first time you read this dataset, please wait for data index')
         audio_transcript_pair_list = []
         # initials, finals = get_initials_and_finals()
-        for (id, text, initials, finals, note, note_duration, slur) in tqdm(data):
+        for (id, text, initials, finals, note, note_duration, slur, hanzi_words) in tqdm(data):
             # check whether audio exist and legal
             audio_dir = self.path+'/wavs/'+id+'.wav'
             if not os.path.isfile(audio_dir):
@@ -130,7 +144,7 @@ class OpenCpop(BaseReader):
             if len(text) > text_max_length or len(audio) > audio_max_sample_length:
                 print(audio_dir, len(text), len(audio))
                 continue
-            audio_transcript_pair_list.append((str(audio_dir), text, initials, finals, note, note_duration, slur))
+            audio_transcript_pair_list.append((str(audio_dir), text, initials, finals, note, note_duration, slur, hanzi_words))
             if save_name is not None:
                 if not os.path.exists(self.pickle_path):
                     os.makedirs(self.pickle_path)
@@ -141,10 +155,13 @@ class OpenCpop(BaseReader):
         
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
-        audio_dir, text, initials, finals, note, note_duration, slur = pair
+        audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
 
         # audio
-        audio = self.load_wave(audio_dir, sample_rate=self.SAMPLE_RATE)
+        if self.dummy_reader:
+            audio = np.zeros([1,2])
+        else:
+            audio = self.load_wave(audio_dir, sample_rate=self.SAMPLE_RATE)
         audio = audio.flatten()
         assert audio.shape[-1] < whisper.audio.N_SAMPLES # or it will be cut
         audio = whisper.pad_or_trim(audio)
@@ -158,36 +175,34 @@ class OpenCpop(BaseReader):
         note = [*self.note_tokenizer.sot_sequence_including_notimestamps] + self.note_tokenizer.encode(note)
         note_duration = num_sot + note_duration
         slur = [*self.slur_tokenizer.sot_sequence_including_notimestamps] + self.slur_tokenizer.encode(slur)
-
-        initials_label = initials[1:] + [self.initials_tokenizer.eot]
-        finals_label = finals[1:] + [self.finals_tokenizer.eot]
-        note_label = note[1:] + [self.note_tokenizer.eot]
-        note_duration_label = note_duration[1:] + [0]
-        slur_label = slur[1:] + [self.slur_tokenizer.eot]
-
+        # TODO: words 是有问题的
+        words= [*self.word_tokenizer.sot_sequence_including_notimestamps] + self.word_tokenizer.encode(hanzi_words)
 
         # text, phoneme, note, note_duration, slur
         return SonicData(
             mel, 
-            words=[word for word in text],
+            words=words,
             original_text=text,
             initials=initials,
-            initials_label=initials_label,
             finals=finals,
-            finals_label=finals_label,
             note=note,
-            note_label=note_label,
             note_duration=note_duration,
-            note_duration_label=note_duration_label,
             slur=slur,
-            slur_label=slur_label,
         )
         
     
     
 
 if __name__ == '__main__':
-    oc_train = OpenCpop()
+    # oc_train = OpenCpop()
     oc_test = OpenCpop(train=False)
-    print(oc_test[0])
+    field_names = [field.name for field in dataclasses.fields(SonicData)]
+    for fn in field_names:
+        print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
+    
+    
+    # line = '2003000080|如果云层是天空的一封信|r u SP g uo y vn c eng sh i SP t ian k ong d e y i f eng x in in AP|A4 A4 rest F4 F4 G4 G4 F4 F4 F4 F4 rest A4 A4 F4 F4 F4 F4 A4 A4 F4 F4 G4 G4 E4 rest|0.403020 0.403020 0.107000 0.216470 0.216470 0.312410 0.312410 0.410540 0.410540 0.277300 0.277300 0.050330 0.401710 0.401710 0.306500 0.306500 0.217860 0.217860 0.276560 0.276560 0.287320 0.287320 0.641950 0.641950 1.387340 0.552190|0.08094 0.32208 0.107 0.03583 0.18064 0.12885 0.18356 0.17752 0.23302 0.1515 0.1258 0.05033 0.08499 0.31672 0.08773 0.21877 0.05056 0.1673 0.05661 0.21995 0.12472 0.1626 0.20199 0.43996 1.38734 0.55219|0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'
+    # id, text, phoneme, note, note_duration, phoneme_duration, slur = line.split('|')
+    # id, text, initials, finals, note, note_duration, slur, hanzi_words = oc_test.parse_line(id, text, phoneme, note, note_duration, phoneme_duration, slur)
+    # print(hanzi_words, text, initials)
     

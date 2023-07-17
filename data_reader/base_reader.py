@@ -12,6 +12,7 @@ from tqdm import tqdm
 import pickle
 from typing import Dict, List, Optional, Tuple
 from whisper.tokenizer import get_tokenizer, Tokenizer
+from utils.load_checkpoint import get_config
 
 class BaseReader(torch.utils.data.Dataset):
     def __init__(self, train) -> None:
@@ -21,6 +22,10 @@ class BaseReader(torch.utils.data.Dataset):
         self.train = train
         self.audio_transcript_pair_list = None
         self.path:str = self.config['path']
+        self.dummy_reader = False # if True, get_item will not return wav
+        
+    def set_dummy(self, dummy: bool):
+        self.dummy_reader = dummy
         
     def load_wave(self, wave_path, sample_rate:int=16000) -> torch.Tensor:
         waveform, sr = torchaudio.load(wave_path, normalize=True)
@@ -29,11 +34,12 @@ class BaseReader(torch.utils.data.Dataset):
         return waveform
         
     def get_config(self):
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        config_path = os.path.join(dir_path, 'dataset_config.yaml')
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-            return config[self.dataset_name]
+        all_config = get_config('data_reader/dataset_config.yaml')
+        base_config = all_config['BaseReader']
+        specific_config = all_config[self.dataset_name]
+        for k in specific_config.keys():
+            base_config[k] = specific_config[k]
+        return base_config
     
     def print_config(self):
         print('=== Dataset Info ===')

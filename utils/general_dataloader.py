@@ -4,28 +4,31 @@ import torch
 from torch import Tensor
 import numpy as np
 from typing import Dict, List, Optional, Tuple
+from utils.tokenizers import *
 
+print('globals()', globals().keys())
 @dataclass(frozen=True)
 class SonicData:
     mel: Tensor
     original_text: Optional[str] = None
     words: Optional[list[int]] = None
     note: Optional[list[int]] = None
-    note_label: Optional[list[int]] = None
+    # note_label: Optional[list[int]] = None
     note_duration: Optional[list[int]] = None
-    note_duration_label: Optional[list[int]] = None
+    # note_duration_label: Optional[list[int]] = None
     slur: Optional[list[int]] = None
-    slur_label: Optional[list[int]] = None
+    # slur_label: Optional[list[int]] = None
     initials: Optional[list[int]] = None
-    initials_label: Optional[list[int]] = None
+    # initials_label: Optional[list[int]] = None
     finals: Optional[list[int]] = None
-    finals_label: Optional[list[int]] = None
+    # finals_label: Optional[list[int]] = None
     
 @dataclass
 class SonicBatch:
     mel: Optional[Tensor] = None
     original_text: Optional[list[str]] = None
     words: Optional[Tensor] = None
+    words_label: Optional[Tensor] = None
     note: Optional[Tensor] = None
     note_label: Optional[Tensor] = None
     note_duration: Optional[Tensor] = None
@@ -38,6 +41,7 @@ class SonicBatch:
     finals_label: Optional[Tensor] = None
     
 non_tensor_key = ['original_text']
+field_without_labels = ['mel', 'original_text']
     
 def sonic_batch_to_shape(sonic_batch: SonicBatch):
     field_names = [field.name for field in dataclasses.fields(SonicBatch)]
@@ -65,9 +69,21 @@ class WhisperDataCollatorWithPadding:
         features = {}
         for sonic_data in input:
             for field_name in field_names:
+                field_value = getattr(sonic_data, field_name)
+                if field_value is None:
+                    continue
+                # put all keys together
                 if field_name not in features:
                     features[field_name] = []
-                features[field_name].append(getattr(sonic_data, field_name))
+                features[field_name].append(field_value)
+                # add label to the fields
+                if field_name not in field_without_labels:
+                    field_label_name = field_name + '_label'
+                    if field_label_name not in features:
+                        features[field_label_name] = []
+                    assert f'{field_name}_tokenizer' in globals(), f'{field_name}_tokenizer'
+                    field_label_value = field_value[1:] + [globals().get(f'{field_name}_tokenizer').eot]
+                    features[field_label_name].append(field_label_value)
 
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
         setattr(sonic_batch, 'original_text', features['original_text'])
@@ -88,7 +104,7 @@ class WhisperDataCollatorWithPadding:
             if all(element is None for element in v):
                 continue
             feature_lengths_ = [len(p) if p is not None else 0 for p in v]
-            assert feature_lengths_ == feature_lengths, f'{feature_lengths_}, {feature_lengths}'
+            assert feature_lengths_ == feature_lengths, f'{k}, current {feature_lengths_} not equals to {feature_lengths}'
             features[k] = [np.pad(f, (0, max_feature_len - f_len), 'constant', constant_values=constant_values) 
                             for f, f_len in zip(v, feature_lengths)]
 
