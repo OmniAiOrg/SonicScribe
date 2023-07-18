@@ -12,15 +12,10 @@ class SonicData:
     original_text: Optional[str] = None
     words: Optional[list[int]] = None
     note: Optional[list[int]] = None
-    # note_label: Optional[list[int]] = None
     note_duration: Optional[list[int]] = None
-    # note_duration_label: Optional[list[int]] = None
     slur: Optional[list[int]] = None
-    # slur_label: Optional[list[int]] = None
     initials: Optional[list[int]] = None
-    # initials_label: Optional[list[int]] = None
     finals: Optional[list[int]] = None
-    # finals_label: Optional[list[int]] = None
     
 @dataclass
 class SonicBatch:

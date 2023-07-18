@@ -25,7 +25,6 @@ class OpenCpop(BaseReader):
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
         self.pickle_path = self.config['path']+'/temp'
-        self.audio_transcript_pair_list
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
         self.SLUR_TEXT = str(self.config['SLUR_TEXT'])
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])

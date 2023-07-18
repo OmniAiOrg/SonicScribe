@@ -10,9 +10,12 @@ BaseReader:
   path: 
   NONE_TEXT: 'NO'
   SLUR_TEXT: 'SL'
+  TEXT_MAX_LENGTH: 120
   AUDIO_MAX_LENGTH: 480000
   SAMPLE_RATE: 16000
-  MAX_SECS: 30 # 最长30秒 = AUDIO_MAX_LENGTH/SAMPLE_RATE
+  MAX_SECS: 30 # allow 30s = AUDIO_MAX_LENGTH/SAMPLE_RATE
+  SEED: 3407
+  VERIFY_AUDIO: true # If true, very slow, but only need to generate pickle once. If you trust the dataset is 100% correct, set to false
 
 Openslr33:
   name: AIShell-1
@@ -31,6 +34,4 @@ OpenCpop:
   license: CC BY-NC-ND 4.0
   website: https://wenet.org.cn/opencpop/
   path: /mnt/private_cq/dataset/opencpop
-  TEXT_MAX_LENGTH: 120
-  SEED: 3407
 
