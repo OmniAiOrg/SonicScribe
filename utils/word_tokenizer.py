@@ -43,7 +43,7 @@ if __name__ == '__main__':
     print(f'encode batch = {cc}')
     cc = word_tokenizer.decode(cc)
     print(f'decode batch = {cc}')
-    cc = word_tokenizer.encode_list(["<|startoftranscript|>", "语", "语文", "語", "語文"])
+    cc = word_tokenizer.encode_list(["<|startoftranscript|>", "语", "如果", "語", "語文"])
     print(f'encode batch = {cc}')
     cc = word_tokenizer.decode_list(cc)
     print(f'decode batch = {cc}')
