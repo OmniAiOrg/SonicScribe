@@ -1,1 +1,1 @@
-This folder was copied from diffsinger official implementation.
+This folder (../opencpop) was copied from diffsinger official implementation.

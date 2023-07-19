@@ -167,11 +167,12 @@ class OpenCpop(BaseReader):
                 print(audio_dir, len(text), len(audio))
                 continue
             audio_transcript_pair_list.append((str(audio_dir), text, initials, finals, note, note_duration, slur, hanzi_words))
-            if save_name is not None:
-                if not os.path.exists(self.pickle_path):
-                    os.makedirs(self.pickle_path)
-                with open(save_dir,'wb') as in_data:
-                    pickle.dump(audio_transcript_pair_list,in_data,pickle.HIGHEST_PROTOCOL)
+        # cache to pickle 
+        if save_name is not None:
+            if not os.path.exists(self.pickle_path):
+                os.makedirs(self.pickle_path)
+            with open(save_dir,'wb') as in_data:
+                pickle.dump(audio_transcript_pair_list,in_data,pickle.HIGHEST_PROTOCOL)
         return audio_transcript_pair_list
         
         
