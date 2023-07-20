@@ -19,6 +19,7 @@ import whisper
 from whisper.tokenizer import get_tokenizer
 from dataclasses import dataclass
 from utils.simplified_chinese_tokenizer import traditional_to_simplified
+from utils.match_chinese_dp import match_characters
 
 class WhisperDurationTagger:
     def __init__(self, model_name='tiny', force_cpu=False, download_root='./assets/whisper_checkpoint/') -> None:
@@ -105,8 +106,23 @@ class WhisperDurationTagger:
         return output
     
     def match(self, output: list[TransChar], text: str) -> list[TransChar]:
-        
-        return output
+        '''
+        greedy match text with output
+        '''
+        matched = match_characters(
+            [t for t in text],
+            [st.word for st in output]
+        )
+        if len(matched) != len(text):
+            return []
+        new_output = []
+        for character, index in matched:
+            new_output.append(self.TransChar(
+                character,
+                output[index].start,
+                output[index].end
+            ))
+        return new_output
     
     def predict(self, text: str, wav_path: str) -> list[TransChar]:
         '''
@@ -120,9 +136,10 @@ class WhisperDurationTagger:
         
     
 if __name__ == '__main__':
+    # Example of usage:
     tagger = WhisperDurationTagger('tiny', download_root='/mnt/private_cq/whisper_checkpoint')
-    output = tagger.predict('如果云层是天空的一封信', './assets/sample_audio/opencpop/2003000102.wav')
-    # output = tagger.predict('该土地拍卖价刷新了杨浦区 土地最贵单价记录', './assets/sample_audio/33-Aishell/data_aishell/wav/dev/S0726/BAC009S0726W0171.wav')
+    # output = tagger.predict('如果云层是天空的一封信', './assets/sample_audio/opencpop/2003000102.wav')
+    output = tagger.predict('该土地拍卖价刷新了杨浦区土地最贵单价记录', './assets/sample_audio/33-Aishell/data_aishell/wav/dev/S0726/BAC009S0726W0171.wav')
     for sc in output:
         print(f'{sc.word}: {sc.start} -> {sc.end}')
     '''
