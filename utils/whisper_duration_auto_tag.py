@@ -10,8 +10,7 @@ And there may be a small trick, which is add spaces between every two Chinese
 characters, so the prediction will prefer to predict single chinese characters.
 The we could calculate the character level duration, which may be not accurate,
 so we also need to distinguish whether the predicted duration is acceptable.
-finally, we will return the predicted list of duration, which may contain
--100, not predicted.
+finally, we will return the predicted list of duration.
 '''
 
 import torch
@@ -20,9 +19,12 @@ from whisper.tokenizer import get_tokenizer
 from dataclasses import dataclass
 from utils.simplified_chinese_tokenizer import traditional_to_simplified
 from utils.match_chinese_dp import match_characters
+from utils.load_checkpoint import get_config
 
 class WhisperDurationTagger:
-    def __init__(self, model_name='tiny', force_cpu=False, download_root='./assets/whisper_checkpoint/') -> None:
+    def __init__(self, model_name='tiny', force_cpu=False) -> None:
+        config = get_config()
+        download_root = config['whisper']['checkpoint']
         device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
         self.model = whisper.load_model(model_name, download_root=download_root).to(device)
         self.language = "zh"
@@ -63,13 +65,19 @@ class WhisperDurationTagger:
             condition_on_previous_text = False,
         )
         output = []
+        time_mismatch = False
         for segment in result["segments"]:
             for timing in segment["words"]:
-                assert timing["start"] < timing["end"]
+                if timing["start"] > timing["end"]:
+                    # Caution! start and end may be the same
+                    time_mismatch = True
                 output.append(self.TransChar(
                     traditional_to_simplified(timing["word"]),
                     float(timing["start"]),
-                    float(timing["end"])))
+                    float(timing["end"])
+                    ))
+        if time_mismatch:
+            print(f'time mismatch: {output}')
         return output
         
     def pre_predict(self, text: str, wav_path: str) -> list[TransChar]:
@@ -137,7 +145,7 @@ class WhisperDurationTagger:
     
 if __name__ == '__main__':
     # Example of usage:
-    tagger = WhisperDurationTagger('tiny', download_root='/mnt/private_cq/whisper_checkpoint')
+    tagger = WhisperDurationTagger('tiny')
     # output = tagger.predict('如果云层是天空的一封信', './assets/sample_audio/opencpop/2003000102.wav')
     output = tagger.predict('该土地拍卖价刷新了杨浦区土地最贵单价记录', './assets/sample_audio/33-Aishell/data_aishell/wav/dev/S0726/BAC009S0726W0171.wav')
     for sc in output:

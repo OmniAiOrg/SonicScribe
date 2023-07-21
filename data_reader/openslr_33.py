@@ -15,12 +15,13 @@ from typing import Dict, List, Optional, Tuple
 import glob
 from utils.general_dataloader import SonicData
 from utils.tokenizers import *
+from utils.whisper_duration_auto_tag import WhisperDurationTagger
 
 class Openslr33(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp2'
+        self.pickle_path = self.config['path']+'/temp3'
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])
         self.TEXT_MAX_LENGTH = int(self.config['TEXT_MAX_LENGTH'])
         self.SAMPLE_RATE = int(self.config['SAMPLE_RATE'])
@@ -29,7 +30,7 @@ class Openslr33(BaseReader):
         self.initials_tokenizer = initials_tokenizer
         self.finals_tokenizer = finals_tokenizer
         self.word_tokenizer = words_tokenizer
-        
+
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'
         self.text_path = self.config['path']+'transcript/aishell_transcript_v0.8.txt'
@@ -62,6 +63,7 @@ class Openslr33(BaseReader):
         print(f'There are {len(wav_files)} wav files in {audio_path}')
         # print(wav_files[:10])
         # exit(0)
+        duration_tagger = WhisperDurationTagger('tiny')
         ids_not_in_text = []
         text_or_audio_exceed_size = []
         for wav_file in tqdm(wav_files):
@@ -72,12 +74,15 @@ class Openslr33(BaseReader):
                 continue
             text = text_data[id]
             text = ''.join(text.split(' '))
+            duration = duration_tagger.predict(text, audio_path+wav_file)
+            duration_start = [st.start for st in duration]
+            duration_end = [st.end for st in duration]
             audio = self.load_wave(audio_path+wav_file, sample_rate=sample_rate)[0]
             if len(text) > text_max_length or len(audio) > audio_max_sample_length:
                 print(f'{text}, {wav_file}, {len(text)} > {text_max_length} or {len(audio)} > {audio_max_sample_length}')
                 text_or_audio_exceed_size.append(id)
                 continue
-            audio_transcript_pair_list.append((str(wav_file), text))
+            audio_transcript_pair_list.append((str(wav_file), text, duration_start, duration_end))
         # print all id that ignored
         print(f'There are {len(ids_not_in_text)} ids not in text, they are {ids_not_in_text}')
         print(f'There are {len(text_or_audio_exceed_size)} text or audio exceed size, they are {text_or_audio_exceed_size}')
@@ -100,7 +105,7 @@ class Openslr33(BaseReader):
         
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
-        wav_path, text = pair
+        wav_path, text, duration_start, duration_end = pair
         wav_path = self.audio_path + wav_path
         # words
         if '\n' in text:
@@ -118,7 +123,7 @@ class Openslr33(BaseReader):
         audio = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio)
 
-        return words, text
+        return words, text, duration_start
 
         return SonicData(
             mel,
@@ -134,8 +139,8 @@ class Openslr33(BaseReader):
     
 
 if __name__ == '__main__':
-    openslr_33_train = Openslr33()
     openslr_33_test = Openslr33(train=False)
+    openslr_33_train = Openslr33()
     print(len(openslr_33_train), len(openslr_33_test))
     print(openslr_33_test[0])
     

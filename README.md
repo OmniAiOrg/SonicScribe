@@ -5,9 +5,10 @@ SonicScribe is a project that converts a singer's voice into a script with notes
 TODO:
 
 - [x] Create a dataset for openCpop.
-- [ ] Whisper auto duration tag for speech dataset
-- [ ] Create a dataset for openslr.
-- [ ] visulize dataset to verify all positions match 
+- [x] Whisper auto duration tag for speech dataset
+- [ ] ~~visulize dataset to verify all positions match~~
+- [x] split audio to word level file and verify by listen to check the duration tag.
+- [x] Create a dataset for openslr33.
 - [ ] Define an omni data format for training that can handle singing (phoneme, note, duration), music (note), and speech (phoneme, duration) together.
 - [ ] Create a tokenizer for single Chinese characters. The tokenizer should be dynamic during training and should only support simplified Chinese characters. For new single characters, start from the mean of their components.
 - [ ] Create a tokenizer for notes, duration, and phonemes. For phonemes, copy from existing or similar phonemes.

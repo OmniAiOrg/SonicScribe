@@ -175,7 +175,11 @@ class OpenCpop(BaseReader):
                 pickle.dump(audio_transcript_pair_list,in_data,pickle.HIGHEST_PROTOCOL)
         return audio_transcript_pair_list
         
-        
+    def get_naive_item(self, idx):
+        pair = super().__getitem__(idx)
+        audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
+        return audio_dir, hanzi_words, note_duration, text
+    
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
         audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
