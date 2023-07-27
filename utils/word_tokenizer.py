@@ -35,6 +35,12 @@ class WordTokenizer(NaiveTokenizer):
     def decode(self, input:list[list[int]]) -> str:
         return self.word_tokenizer.decode([item for sublist in input for item in sublist])
         
+# class WordEmbeddingInitializer():
+#     def __init__(self) -> None:
+#         self.word_tokenizer = WordTokenizer()
+        
+#     def 
+        
         
         
 if __name__ == '__main__':

@@ -21,10 +21,12 @@ class Openslr33(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp3'
+        self.pickle_path = self.config['path']+'/temp4'
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])
         self.TEXT_MAX_LENGTH = int(self.config['TEXT_MAX_LENGTH'])
         self.SAMPLE_RATE = int(self.config['SAMPLE_RATE'])
+        self.MODEL_SIZE = str(self.config['model_size'])
+        self.DISABLE_TQDM = bool(self.config['DISABLE_TQDM'])
         self.audio_transcript_pair_list = self.get_dataset(train)
         
         self.initials_tokenizer = initials_tokenizer
@@ -63,18 +65,22 @@ class Openslr33(BaseReader):
         print(f'There are {len(wav_files)} wav files in {audio_path}')
         # print(wav_files[:10])
         # exit(0)
-        duration_tagger = WhisperDurationTagger('tiny')
+        duration_tagger = WhisperDurationTagger(self.MODEL_SIZE)
         ids_not_in_text = []
         text_or_audio_exceed_size = []
-        for wav_file in tqdm(wav_files):
+        for wav_file in tqdm(wav_files, disable=self.DISABLE_TQDM):
             id = self.wav_path_to_id(wav_file)
             if id not in text_data:
                 print(f'{id} not in {self.text_path}')
                 ids_not_in_text.append(id)
                 continue
             text = text_data[id]
+            if '\n' in text:
+                text = text.split('\n')[0]
             text = ''.join(text.split(' '))
             duration = duration_tagger.predict(text, audio_path+wav_file)
+            if len(duration) == 0:
+                continue
             duration_start = [st.start for st in duration]
             duration_end = [st.end for st in duration]
             audio = self.load_wave(audio_path+wav_file, sample_rate=sample_rate)[0]
@@ -108,8 +114,6 @@ class Openslr33(BaseReader):
         wav_path, text, duration_start, duration_end = pair
         wav_path = self.audio_path + wav_path
         # words
-        if '\n' in text:
-            text = text.split('\n')[0]
         hanzi_words = [word for word in text]
         words= [*self.word_tokenizer.sot_sequence_including_notimestamps] + self.word_tokenizer.encode(hanzi_words)
 
@@ -123,7 +127,7 @@ class Openslr33(BaseReader):
         audio = whisper.pad_or_trim(audio)
         mel = whisper.log_mel_spectrogram(audio)
 
-        return words, text, duration_start
+        return words, text, duration_start, duration_end
 
         return SonicData(
             mel,
@@ -142,5 +146,5 @@ if __name__ == '__main__':
     openslr_33_test = Openslr33(train=False)
     openslr_33_train = Openslr33()
     print(len(openslr_33_train), len(openslr_33_test))
-    print(openslr_33_test[0])
+    print(openslr_33_train[34])
     

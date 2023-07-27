@@ -16,6 +16,7 @@ BaseReader:
   MAX_SECS: 30 # allow 30s = AUDIO_MAX_LENGTH/SAMPLE_RATE
   SEED: 3407
   VERIFY_AUDIO: true # If true, very slow, but only need to generate pickle once. If you trust the dataset is 100% correct, set to false
+  DISABLE_TQDM: false # If true, not show finish rate bar in terminal
 
 Openslr33:
   name: AIShell-1
@@ -25,6 +26,7 @@ Openslr33:
   license: Apache License v.2.0
   website: https://www.openslr.org/33
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/33-Aishell/data_aishell/
+  model_size: tiny # one of [tiny, base, small, medium, large-v2], with size [73M, 139M, 462M, 1.5G, 2.9G]
 
 OpenCpop:
   name: OpenCpop

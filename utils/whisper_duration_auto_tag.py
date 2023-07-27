@@ -21,11 +21,18 @@ from utils.simplified_chinese_tokenizer import traditional_to_simplified
 from utils.match_chinese_dp import match_characters
 from utils.load_checkpoint import get_config
 
+@dataclass
+class TransChar:
+    word: str
+    start: float
+    end: float
+
 class WhisperDurationTagger:
     def __init__(self, model_name='tiny', force_cpu=False) -> None:
         config = get_config()
         download_root = config['whisper']['checkpoint']
         device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
+        print(f"Start loading whisper model ({model_name}), it may take a while")
         self.model = whisper.load_model(model_name, download_root=download_root).to(device)
         self.language = "zh"
         self.tokenizer = get_tokenizer(self.model.is_multilingual)
@@ -41,11 +48,6 @@ class WhisperDurationTagger:
                 _, id, org, ex = line.split(' ')
                 self.origin_to_dummy_pair[org] = ex
                 self.dummy_to_origin_pair[ex] = org
-    @dataclass
-    class TransChar:
-        word: str
-        start: float
-        end: float
         
     def naive_predict(self, text: str, wav_path: str) -> list[TransChar]:
         '''
@@ -71,7 +73,7 @@ class WhisperDurationTagger:
                 if timing["start"] > timing["end"]:
                     # Caution! start and end may be the same
                     time_mismatch = True
-                output.append(self.TransChar(
+                output.append(TransChar(
                     traditional_to_simplified(timing["word"]),
                     float(timing["start"]),
                     float(timing["end"])
@@ -122,10 +124,12 @@ class WhisperDurationTagger:
             [st.word for st in output]
         )
         if len(matched) != len(text):
+            print(f'matched={len(matched)}, text={len(text)}')
+            print(f'matched={matched}, text={text}')
             return []
         new_output = []
         for character, index in matched:
-            new_output.append(self.TransChar(
+            new_output.append(TransChar(
                 character,
                 output[index].start,
                 output[index].end
@@ -146,8 +150,8 @@ class WhisperDurationTagger:
 if __name__ == '__main__':
     # Example of usage:
     tagger = WhisperDurationTagger('tiny')
-    # output = tagger.predict('如果云层是天空的一封信', './assets/sample_audio/opencpop/2003000102.wav')
-    output = tagger.predict('该土地拍卖价刷新了杨浦区土地最贵单价记录', './assets/sample_audio/33-Aishell/data_aishell/wav/dev/S0726/BAC009S0726W0171.wav')
+    output = tagger.predict('如果云层是天空的一封信', './assets/sample_audio/opencpop/2003000102.wav')
+    # output = tagger.predict('该土地拍卖价刷新了杨浦区土地最贵单价记录', './assets/sample_audio/33-Aishell/data_aishell/wav/dev/S0726/BAC009S0726W0171.wav')
     for sc in output:
         print(f'{sc.word}: {sc.start} -> {sc.end}')
     '''

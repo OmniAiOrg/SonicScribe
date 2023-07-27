@@ -13,17 +13,54 @@ from pypinyin import pinyin, lazy_pinyin, Style
 from utils.opencpop.map import cpop_pinyin2ph_func
 from utils.simplified_chinese_tokenizer import traditional_to_simplified
 
+cjk_ranges = [
+        ( 0x4E00,  0x62FF),
+        ( 0x6300,  0x77FF),
+        ( 0x7800,  0x8CFF),
+        ( 0x8D00,  0x9FCC),
+        ( 0x3400,  0x4DB5),
+        (0x20000, 0x215FF),
+        (0x21600, 0x230FF),
+        (0x23100, 0x245FF),
+        (0x24600, 0x260FF),
+        (0x26100, 0x275FF),
+        (0x27600, 0x290FF),
+        (0x29100, 0x2A6DF),
+        (0x2A700, 0x2B734),
+        (0x2B740, 0x2B81D),
+        (0x2B820, 0x2CEAF),
+        (0x2CEB0, 0x2EBEF),
+        (0x2F800, 0x2FA1F)
+    ]
+
+def is_cjk(char):
+    '''
+    this function was copied from https://stackoverflow.com/a/52837006
+    '''
+    char = ord(char)
+    for bottom, top in cjk_ranges:
+        if char >= bottom and char <= top:
+            return True
+    return False
+
 def is_chinese(c):
     # return True
-    if not ('\u4e00' <= c <= '\u9fa5'):
-        return False
-    return True
+    return is_cjk(c)
 
-def check_chinese_words_with_single_whisper_token():
+def check_chinese_words_with_single_whisper_token(verbose=True):
+    '''
+    return a list of chinese_words_with_single_whisper_token
+    eg:
+    251 10440 什么
+    252 8861 一下
+    253 8034 真的
+    254 7758 知道
+    '''
     word_tokenizer = WordTokenizer()
     map = word_tokenizer.word_tokenizer.encoding._mergeable_ranks
     map_size = len(map)
     counter = 0
+    chinese_words_with_single_whisper_token = []
     for i in range(map_size):
         loc = map_size - i - 1
         word = word_tokenizer.decode([[loc]])
@@ -37,9 +74,21 @@ def check_chinese_words_with_single_whisper_token():
             simplified_word = traditional_to_simplified(word)
             if word == simplified_word:
                 counter += 1
-                print(counter, loc, word)
+                if verbose:
+                    print(counter, loc, word)
+                chinese_words_with_single_whisper_token.append((counter, loc, word))
+    return chinese_words_with_single_whisper_token
             
 def get_all_chinese_whisper_token():
+    '''
+    eg:
+    575 走 zou
+    9574 之 zhi
+    9572 其 qi
+    9497 们 men
+    9487 次 ci
+    9463 覺 jue
+    '''
     pinyin_keys = set(cpop_pinyin2ph_func().keys())
     word_tokenizer = WordTokenizer()
     map = word_tokenizer.word_tokenizer.encoding._mergeable_ranks
@@ -58,6 +107,9 @@ def get_all_chinese_whisper_token():
         test_num -= 1
     print(len(pinyin_map))
     print(pinyin_keys-set(pinyin_map.keys()))
+            
+
 
 if __name__ == '__main__':
-    check_chinese_words_with_single_whisper_token()
+    # check_chinese_words_with_single_whisper_token()
+    get_all_chinese_whisper_token()

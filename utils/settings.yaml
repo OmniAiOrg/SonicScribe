@@ -2,4 +2,4 @@ whisper:
   checkpoint: /mnt/private_cq/whisper_checkpoint
 
 tokenizer:
-  chinese_characters: ./assets/simplified_chinese.txt
+  simplified_chinese_characters: ./assets/simplified_chinese.txt

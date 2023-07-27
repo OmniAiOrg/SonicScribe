@@ -9,7 +9,7 @@ from functools import cached_property
 class NaiveTokenizer:
     
     def __init__(self, vocabs:List[str], task:str) -> None:
-        assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>'], task
+        assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>'], task
         self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>']
         self.vocabs:List[str] = [*self.spetial_code, task, *vocabs]
         self.converter: Dict[str, int] = {}
