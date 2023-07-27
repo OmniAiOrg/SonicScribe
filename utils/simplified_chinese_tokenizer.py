@@ -18,9 +18,16 @@ class SimplifiedChineseTokenizer(NaiveTokenizer):
         self.chinese_map_file = config['tokenizer']['simplified_chinese_characters']
         print(f'load chinese characters from {self.chinese_map_file}')
         self.all_hanzi = FileUpdater(self.chinese_map_file)
+        for i in range(len(self.all_hanzi)):
+            idx = len(self.vocabs)
+            self.vocabs.append(self.get_content(i))
+            self.converter[self.get_content(i)] = idx
     
     def add_content(self, new_hanzi):
         self.all_hanzi.add_content(new_hanzi)
+        idx = len(self.vocabs)
+        self.vocabs.append(new_hanzi)
+        self.converter[new_hanzi] = idx
         
     def get_content(self, id):
         return self.all_hanzi.get_content(id)
@@ -28,14 +35,6 @@ class SimplifiedChineseTokenizer(NaiveTokenizer):
     def contains(self, hanzi):
         return self.all_hanzi.check_content_exist(hanzi)
     
-    def __len__(self) -> int:
-        return len(self.all_hanzi)
-
-    def encode(self, input:str) -> list[int]:
-        return [self.all_hanzi.get_id(i) for i in input]
-
-    def decode(self, input:list[int]) -> str:
-        return [self.all_hanzi.get_content(i) for i in input]
         
 
 class FileUpdater:
@@ -59,6 +58,7 @@ class FileUpdater:
         return content in self.content_to_id
 
     def add_content(self, content):
+        assert len(content) == 1, f'content={content}, size != 1'
         if not self.check_content_exist(content):
             new_id = len(self.id_to_content)
             self.id_to_content[new_id] = content
@@ -79,59 +79,32 @@ if __name__ == '__main__':
     4. Save these embeddings into single file with operators;
     5. The the embeddings and tokenizer can be load for training; 
     '''
-    from data_reader.opencpop import OpenCpop
-    from utils.load_checkpoint import get_config
-    from utils.chinese_to_pinyin import is_chinese
-    from utils.word_tokenizer import WordTokenizer
+    from utils.preparation.init_simplified_chinese import chinese_save_to_txt
+    chinese_save_to_txt()
     
-    class ChineseCharacterCollector:
-        characters = set()
-        def add(self, sentence: str):
-            sentence = traditional_to_simplified(sentence)
-            for character in sentence:
-                if is_chinese(character):
-                    self.characters.add(character)
-                else:
-                    print(f'[warn] not Chinese: {character}')
-                
-        def __len__(self) -> int:
-            return len(self.characters)
-        
-        def save_to_file(self, file_path:str):
-            assert file_path.endswith('.txt')
-            char_list = list(self.characters)
-            char_list.sort()
-            with open(file_path, 'w') as f:
-                for i, item in enumerate(char_list):
-                    f.write(f"{item} {i}\n")
-                    
-    def chinese_save_depracated():
-        ccc = ChineseCharacterCollector()
-        config = get_config()
-        ccc_file = config['tokenizer']['simplified_chinese_characters']
-        print(f'chinese characters will be saved to {ccc_file}')
-        
-        # save opencpop
-        oc_train = OpenCpop(train=True)
-        for i in range(len(oc_train)):
-            audio_dir, hanzi_words, note_duration, text = oc_train.get_naive_item(i)
-            ccc.add(text)
-            
-        oc_test = OpenCpop(train=False)
-        for i in range(len(oc_test)):
-            audio_dir, hanzi_words, note_duration, text = oc_test.get_naive_item(i)
-            ccc.add(text)
-            
-        # save openslr33
-        # save Chinese characters that's different in simplified and traditional
-        import pkgutil
-        import json
-        zhcdict = pkgutil.get_data('zhconv', 'zhcdict.json')
-        zhcdicts = json.loads(zhcdict.decode('utf-8'))
-        # ccc.add(zhcdicts['SIMPONLY'].split('𠀾')[0])
-        
-        print(f'There are totally {len(ccc)} Chinese characters saved.')
-        ccc.save_to_file(ccc_file)
-        
-    chinese_save_depracated()
-        
+    word_tokenizer = SimplifiedChineseTokenizer()
+    print('tokenizer size', len(word_tokenizer))
+    
+    cc = word_tokenizer.encode(["语", "文"])
+    print(f'encode batch = {cc}')
+    cc = word_tokenizer.decode(cc)
+    print(f'decode batch = {cc}')
+    
+    word_tokenizer.add_content("文")
+    cc = word_tokenizer.encode(["语", "文"])
+    print(f'encode batch = {cc}')
+    cc = word_tokenizer.decode(cc)
+    print(f'decode batch = {cc}')
+    
+    cc = word_tokenizer.encode(["<|startoftranscript|>", "语", "如", "語", "文"])
+    print(f'encode batch = {cc}')
+    cc = word_tokenizer.decode(cc)
+    print(f'decode batch = {cc}')
+    cc = word_tokenizer.encode(["晒", "鹅", "剋", "文"])
+    print(f'encode batch = {cc}')
+    cc = word_tokenizer.decode(cc)
+    print(f'decode batch = {cc}')
+    
+    
+    
+    

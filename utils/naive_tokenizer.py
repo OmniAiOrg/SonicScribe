@@ -13,7 +13,6 @@ class NaiveTokenizer:
         self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>']
         self.vocabs:List[str] = [*self.spetial_code, task, *vocabs]
         self.converter: Dict[str, int] = {}
-        self.size = len(self.vocabs)
         
         for i, vocab in enumerate(self.vocabs):
             self.converter[vocab] = i
@@ -23,17 +22,20 @@ class NaiveTokenizer:
         self.no_timestamps: int = self.converter["<|notimestamps|>"]
         self.eot: int = self.converter["<|endoftext|>"]
         self.task: int = self.converter[task]
+        
+    def __len__(self):
+        return len(self.vocabs)
 
     def encode(self, text: List[str], **kwargs) -> List[int]:
-        token_ids = [self.converter[t] for t in text]
+        token_ids = [self.converter[t] if t in self.converter else None for t in text]
         return token_ids
 
-    def decode(self, token_ids: List[int], stop_at=-100, **kwargs) -> str:
+    def decode(self, token_ids: List[int], stop_at:int=-100, **kwargs) -> str:
         strs = ''
         for c in token_ids:
             if c == stop_at:
                 break
-            strs += self.vocabs[c]
+            strs += self.vocabs[c] if c is not None else "☐"
             strs += ' '
         return strs
     

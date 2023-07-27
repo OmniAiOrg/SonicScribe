@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from utils.chinese_to_pinyin import is_chinese
 from utils.load_checkpoint import get_config, get_whisper_token_embedding
-from utils.simplified_chinese_tokenizer import SimplifiedChineseTokenizer
+from utils.simplified_chinese_tokenizer import SimplifiedChineseTokenizer, traditional_to_simplified
 from utils.word_tokenizer import WordTokenizer
 
 
@@ -61,7 +61,10 @@ class ChineseTokenEmbedding(nn.Module):
         2. update_table(new_hanzi)
         '''
         for hanzi in text:
-            if not self.tokenizer.contains(hanzi) and is_chinese(hanzi):
+            if not self.tokenizer.contains(hanzi) \
+                    and is_chinese(hanzi)\
+                    and not self.tokenizer.contains(traditional_to_simplified(hanzi)):
+                hanzi = traditional_to_simplified(hanzi)
                 self.update_table(hanzi)
                 
     def __len__(self):
@@ -79,7 +82,7 @@ class ChineseTokenEmbedding(nn.Module):
     
 if __name__ == '__main__':
     tokenizer = SimplifiedChineseTokenizer()
-    print('tokenizer size', len(tokenizer), flush=True)
+    print('tokenizer size', len(tokenizer))
     cte = ChineseTokenEmbedding(5000, 384, tokenizer, 'tiny')
     print('size', len(cte))
     cte.auto_update('世界之大无奇不有2hello泗')
