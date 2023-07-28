@@ -3,7 +3,7 @@ import torch.nn as nn
 from utils.chinese_to_pinyin import is_chinese
 from utils.load_checkpoint import get_config, get_whisper_token_embedding
 from utils.simplified_chinese_tokenizer import SimplifiedChineseTokenizer, traditional_to_simplified
-from utils.word_tokenizer import WordTokenizer
+from utils.word_tokenizer import WhisperOfficialTokenizer
 
 
 class ChineseTokenEmbedding(nn.Module):
@@ -23,7 +23,7 @@ class ChineseTokenEmbedding(nn.Module):
         self.tokenizer = tokenizer
         self.model = model
         self.whisper_official_token_embedding = get_whisper_token_embedding(self.model)
-        self.whisper_official_word_tokenizer = WordTokenizer()
+        self.whisper_official_word_tokenizer = WhisperOfficialTokenizer()
         if init_embedding_from_whisper:
             self.initialize_embedding()
         print('initial size of ChineseTokenEmbedding is', len(self.tokenizer))

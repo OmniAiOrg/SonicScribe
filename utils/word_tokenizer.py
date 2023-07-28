@@ -18,7 +18,7 @@ makes things easy.
 TODO: Is there any better methods that no need to train word embedding? like padding on 
 notes and timestamp?
 '''
-class WordTokenizer(NaiveTokenizer):
+class WhisperOfficialTokenizer(NaiveTokenizer):
     def __init__(self) -> None:
         super().__init__([], '<|word|>')
         self.word_tokenizer = get_tokenizer(True, language='zh', task='transcribe')
@@ -44,7 +44,7 @@ class WordTokenizer(NaiveTokenizer):
         
         
 if __name__ == '__main__':
-    word_tokenizer = WordTokenizer()
+    word_tokenizer = WhisperOfficialTokenizer()
     cc = word_tokenizer.encode("语文")
     print(f'encode batch = {cc}')
     cc = word_tokenizer.decode(cc)

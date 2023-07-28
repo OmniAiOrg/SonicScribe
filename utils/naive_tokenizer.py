@@ -9,7 +9,7 @@ from functools import cached_property
 class NaiveTokenizer:
     
     def __init__(self, vocabs:List[str], task:str) -> None:
-        assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>'], task
+        assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>', '<|pinyin|>'], task
         self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>']
         self.vocabs:List[str] = [*self.spetial_code, task, *vocabs]
         self.converter: Dict[str, int] = {}
@@ -35,7 +35,7 @@ class NaiveTokenizer:
         for c in token_ids:
             if c == stop_at:
                 break
-            strs += self.vocabs[c] if c is not None else "☐"
+            strs += self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐"
             strs += ' '
         return strs
     

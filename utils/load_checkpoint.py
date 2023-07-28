@@ -2,7 +2,6 @@ import whisper
 import yaml
 import os
 import torch
-from utils.word_tokenizer import WordTokenizer
 
 SETTINGS_YAML = './utils/settings.yaml'
 

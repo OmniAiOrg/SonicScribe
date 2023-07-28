@@ -2,7 +2,6 @@ from data_reader.opencpop import OpenCpop
 from utils.load_checkpoint import get_config
 from utils.chinese_to_pinyin import is_chinese
 from utils.simplified_chinese_tokenizer import traditional_to_simplified
-from utils.word_tokenizer import WordTokenizer
 
 class ChineseCharacterCollector:
     characters = set()

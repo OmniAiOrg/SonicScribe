@@ -8,7 +8,7 @@ found in assets folder.
 For not exist pinyin, try use similar embedding to train from. like 'cui' -> 'cu'
 '''
 
-from utils.word_tokenizer import WordTokenizer
+from utils.word_tokenizer import WhisperOfficialTokenizer
 from pypinyin import pinyin, lazy_pinyin, Style
 from utils.opencpop.map import cpop_pinyin2ph_func
 from utils.simplified_chinese_tokenizer import traditional_to_simplified
@@ -56,7 +56,7 @@ def check_chinese_words_with_single_whisper_token(verbose=True):
     253 8034 真的
     254 7758 知道
     '''
-    word_tokenizer = WordTokenizer()
+    word_tokenizer = WhisperOfficialTokenizer()
     map = word_tokenizer.word_tokenizer.encoding._mergeable_ranks
     map_size = len(map)
     counter = 0
@@ -90,7 +90,7 @@ def get_all_chinese_whisper_token():
     9463 覺 jue
     '''
     pinyin_keys = set(cpop_pinyin2ph_func().keys())
-    word_tokenizer = WordTokenizer()
+    word_tokenizer = WhisperOfficialTokenizer()
     map = word_tokenizer.word_tokenizer.encoding._mergeable_ranks
     map_size = len(map)
     test_num = 100000

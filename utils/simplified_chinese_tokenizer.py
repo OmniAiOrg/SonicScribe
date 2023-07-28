@@ -12,8 +12,8 @@ def traditional_to_simplified(character: str) -> str:
 
 
 class SimplifiedChineseTokenizer(NaiveTokenizer):
-    def __init__(self) -> None:
-        super().__init__([], '<|chinese|>')
+    def __init__(self, task:str='<|chinese|>') -> None:
+        super().__init__([], task)
         config = get_config()
         self.chinese_map_file = config['tokenizer']['simplified_chinese_characters']
         print(f'load chinese characters from {self.chinese_map_file}')
