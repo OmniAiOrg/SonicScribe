@@ -3,7 +3,7 @@ Unlike tiktoken, this naive tokenizer is a 1 to 1 tokenizer, which will not
 map to multiple tokens.
 '''
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from functools import cached_property
 
 class NaiveTokenizer:
@@ -30,14 +30,22 @@ class NaiveTokenizer:
         token_ids = [self.converter[t] if t in self.converter else None for t in text]
         return token_ids
 
-    def decode(self, token_ids: List[int], stop_at:int=-100, **kwargs) -> str:
-        strs = ''
-        for c in token_ids:
-            if c == stop_at:
-                break
-            strs += self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐"
-            strs += ' '
-        return strs
+    def decode(self, token_ids: List[int], stop_at:int=-100, compact=False, **kwargs) -> Union[str, list[str]]:
+        if compact:
+            strs = ''
+            for c in token_ids:
+                if c == stop_at:
+                    break
+                strs += self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐"
+                strs += ' '
+            return strs # str
+        else:
+            output = []
+            for c in token_ids:
+                if c == stop_at:
+                    break
+                output.append(self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐")
+            return output # list[str]
     
     @cached_property
     def sot_sequence_including_notimestamps(self) -> Tuple[int]:
