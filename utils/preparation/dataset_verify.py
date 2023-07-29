@@ -9,6 +9,7 @@ from data_reader.opencpop import OpenCpop
 from utils.general_dataloader import SonicData
 from utils.tokenizers import *
 
+# TODO: currently not work
 def sonic_data_to_image(data: SonicData):
     image = ''
     field_names = [field.name for field in dataclasses.fields(SonicData) 

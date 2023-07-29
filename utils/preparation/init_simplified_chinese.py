@@ -41,6 +41,9 @@ def chinese_save_to_txt():
         audio_dir, hanzi_words, note_duration, text = oc_test.get_naive_item(i)
         ccc.add(text)
         
+    ccc.add('乱捏扫楼奥寻穷窘锐森托盆虫桌揣扫俩擦暖宁嗲某农爹戳坑横嫩肯恰刷侧拴僧扽柴楼增贴忒粗润航恁坏夸帅脏床绕颏群搜噶哟盘欻顺撇掠侧耨鞥杂翁旁困嗯软汉藏草催岑谁崩这哼得诶钻弱咯佛努诺吞亏晒桑腾剖窜昂康滚顿斌狼尊拽桃闹扔孙凑卷吹挼偶谬双鸟疟摘贼扎捏囊灭乱撒')
+    ccc.add('黁剋谁得佛饿丢')
+    
     # save openslr33
     # save Chinese characters that's different in simplified and traditional
     import pkgutil

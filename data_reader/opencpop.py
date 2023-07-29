@@ -36,7 +36,7 @@ class OpenCpop(BaseReader):
         self.finals_tokenizer = finals_tokenizer
         self.note_tokenizer = note_tokenizer
         self.slur_tokenizer = slur_tokenizer
-        self.word_tokenizer = words_tokenizer
+        self.word_tokenizer = word_tokenizer
         
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'

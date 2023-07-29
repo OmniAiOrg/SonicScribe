@@ -34,14 +34,17 @@ class ChineseTokenEmbedding(nn.Module):
         2. map token(s) to embedding, do mean,
         3. save embedding back to self.chinese_token_embedding,
         '''
-        for id in range(10):
-            hanzi = self.tokenizer.get_content(id)
-            tokens = self.whisper_official_word_tokenizer.encode(hanzi)[0]
-            # tokens are like [123, 54], here get embedding of these tokens from token_embedding
-            # and then calculate the mean of them, then save back to self.chinese_token_embedding[id]
-            embeddings = self.whisper_official_token_embedding[tokens]
-            mean_embedding = embeddings.mean(dim=0)
-            self.chinese_token_embedding.weight.data[self.tokenizer.encode(hanzi)[0]] = mean_embedding
+        for id in range(len(self.tokenizer)):
+            try:
+                hanzi = self.tokenizer.decode([id])
+                tokens = self.whisper_official_word_tokenizer.encode(hanzi)[0]
+                # tokens are like [123, 54], here get embedding of these tokens from token_embedding
+                # and then calculate the mean of them, then save back to self.chinese_token_embedding[id]
+                embeddings = self.whisper_official_token_embedding[tokens]
+                mean_embedding = embeddings.mean(dim=0)
+                self.chinese_token_embedding.weight.data[self.tokenizer.encode(hanzi)[0]] = mean_embedding
+            except:
+                print(id, hanzi)
             
     def update_table(self, new_hanzi):
         '''

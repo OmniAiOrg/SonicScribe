@@ -8,10 +8,11 @@ found in assets folder.
 For not exist pinyin, try use similar embedding to train from. like 'cui' -> 'cu'
 '''
 
+from utils.load_checkpoint import get_config
 from utils.word_tokenizer import WhisperOfficialTokenizer
 from pypinyin import pinyin, lazy_pinyin, Style
 from utils.opencpop.map import cpop_pinyin2ph_func
-from utils.simplified_chinese_tokenizer import traditional_to_simplified
+from utils.simplified_chinese_tokenizer import FileUpdater, traditional_to_simplified
 
 cjk_ranges = [
         ( 0x4E00,  0x62FF),
@@ -79,7 +80,7 @@ def check_chinese_words_with_single_whisper_token(verbose=True):
                 chinese_words_with_single_whisper_token.append((counter, loc, word))
     return chinese_words_with_single_whisper_token
             
-def get_all_chinese_whisper_token():
+def get_all_chinese_with_single_whisper_token(verbose=True):
     '''
     eg:
     575 走 zou
@@ -93,23 +94,49 @@ def get_all_chinese_whisper_token():
     word_tokenizer = WhisperOfficialTokenizer()
     map = word_tokenizer.word_tokenizer.encoding._mergeable_ranks
     map_size = len(map)
-    test_num = 100000
     pinyin_map = {}
     for i in range(map_size):
         loc = map_size - i - 1
         word = word_tokenizer.decode([[loc]])
         if len(word) == 1 and is_chinese(word):
             py = lazy_pinyin(word)[0]
-            pinyin_map[py] = loc
-            print(loc, word, py)
-        if test_num < 0:
-            break
-        test_num -= 1
-    print(len(pinyin_map))
-    print(pinyin_keys-set(pinyin_map.keys()))
+            pinyin_map[py] = i
+            if verbose:
+                print(loc, word, py)
+    if verbose:
+        print('should have',len(pinyin_keys),'exist',len(pinyin_map))
+        print('lost', pinyin_keys-set(pinyin_map.keys()))
+    return pinyin_map
+
+def get_all_chinese_with_multuple_whisper_token(verbose=True):
+    single_pinyin_map = get_all_chinese_with_single_whisper_token(verbose)
+    need_pinyin_keys = set(cpop_pinyin2ph_func().keys()) - set(single_pinyin_map.keys())
+    word_tokenizer = WhisperOfficialTokenizer()
+    
+    config = get_config()
+    chinese_map_file = config['tokenizer']['simplified_chinese_characters']
+    if verbose:
+        print(f'load chinese characters from {chinese_map_file}')
+    all_hanzi = FileUpdater(chinese_map_file)
+    pinyin_map = {}
+    for i in range(len(all_hanzi)):
+        hanzi = all_hanzi.get_content(i)
+        py = lazy_pinyin(hanzi)[0]
+        tokens = word_tokenizer.encode(hanzi)[0]
+        if py not in need_pinyin_keys:
+            continue
+        pinyin_map[py] = tokens
+        need_pinyin_keys -= set([py])
+        if verbose:
+            print(tokens, hanzi, py)
+    if verbose:
+        print('lost', sorted(list(need_pinyin_keys)))
+    return pinyin_map
+        
             
 
 
 if __name__ == '__main__':
     # check_chinese_words_with_single_whisper_token()
-    get_all_chinese_whisper_token()
+    single_token_map = get_all_chinese_with_single_whisper_token(False)
+    multiple_token_map = get_all_chinese_with_multuple_whisper_token(False)

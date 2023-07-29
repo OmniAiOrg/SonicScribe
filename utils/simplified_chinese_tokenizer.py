@@ -44,9 +44,10 @@ class FileUpdater:
         self.id_to_content = {}
         with open(file_path, 'r') as f:
             for line in f:
-                content, id = line.strip().split()
-                self.content_to_id[content] = int(id)
-                self.id_to_content[int(id)] = content
+                if len(line) > 2:
+                    content, id = line.strip().split()
+                    self.content_to_id[content] = int(id)
+                    self.id_to_content[int(id)] = content
 
     def get_id(self, content):
         return self.content_to_id.get(content)
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     chinese_save_to_txt()
     
     word_tokenizer = SimplifiedChineseTokenizer()
-    print('tokenizer size', len(word_tokenizer))
+    print('before add_content, tokenizer size', len(word_tokenizer))
     
     cc = word_tokenizer.encode(["语", "文"])
     print(f'encode batch = {cc}')
@@ -91,6 +92,7 @@ if __name__ == '__main__':
     print(f'decode batch = {cc}')
     
     word_tokenizer.add_content("文")
+    print('after add_content, tokenizer size', len(word_tokenizer))
     cc = word_tokenizer.encode(["语", "文"])
     print(f'encode batch = {cc}')
     cc = word_tokenizer.decode(cc)
