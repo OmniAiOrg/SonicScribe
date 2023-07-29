@@ -16,6 +16,7 @@ import glob
 from utils.general_dataloader import SonicData
 from utils.tokenizers import *
 from utils.whisper_duration_auto_tag import WhisperDurationTagger
+from pypinyin import pinyin, lazy_pinyin, Style
 
 class Openslr33(BaseReader):
     def __init__(self, train=True) -> None:
@@ -31,7 +32,7 @@ class Openslr33(BaseReader):
         
         self.initials_tokenizer = initials_tokenizer
         self.finals_tokenizer = finals_tokenizer
-        self.word_tokenizer = words_tokenizer
+        self.word_tokenizer = word_tokenizer
 
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'
@@ -111,10 +112,15 @@ class Openslr33(BaseReader):
         
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
-        wav_path, text, duration_start, duration_end = pair
+        wav_path, text, dur_start, dur_end = pair
+        hanzi_words = [i for i in text]
+        pinyin = [lazy_pinyin(i)[0] for i in text]
+        tone = [i[-1] if len(i)>0 and i[-1] in ['1','2','3','4','5'] else '0' for i in [lazy_pinyin(i, style=Style.FINALS_TONE3)[0] for i in text]]
+        return (wav_path, hanzi_words, pinyin, tone, dur_start, dur_end)
         wav_path = self.audio_path + wav_path
         # words
         hanzi_words = [word for word in text]
+        self.word_tokenizer.add_content
         words= [*self.word_tokenizer.sot_sequence_including_notimestamps] + self.word_tokenizer.encode(hanzi_words)
 
         # audio
@@ -143,8 +149,16 @@ class Openslr33(BaseReader):
     
 
 if __name__ == '__main__':
+    def print_data(hanzi_words, pinyin, tone, dur_start, dur_end):
+        assert len(hanzi_words) == len(pinyin) and len(tone) == len(dur_start) and \
+            len(dur_end) == len(dur_start) and len(hanzi_words) == len(tone)
+        for i in range(len(hanzi_words)):
+            print(f'{hanzi_words[i]}:{pinyin[i]:<6}[{tone[i]}] ({dur_start[i]}->{dur_end[i]})')
+    
     openslr_33_test = Openslr33(train=False)
     openslr_33_train = Openslr33()
     print(len(openslr_33_train), len(openslr_33_test))
-    print(openslr_33_train[34])
+    (wav_path, hanzi_words, pinyin, tone, dur_start, dur_end) = openslr_33_train[34]
+    print(wav_path)
+    print_data(hanzi_words, pinyin, tone, dur_start, dur_end)
     

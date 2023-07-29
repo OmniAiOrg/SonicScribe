@@ -1,9 +1,16 @@
+'''
+All data reader will not convert original symbol to tokens. Instead, all tokenizer will
+work in this dataloader. This means mask could also be generatted in here.
+'''
+
+
 import dataclasses
 from dataclasses import dataclass
 import torch
 from torch import Tensor
 import numpy as np
 from typing import Dict, List, Optional, Tuple
+from model.chinese_token_embeddings import ChineseTokenEmbedding
 from utils.tokenizers import *
 
 @dataclass(frozen=True)
@@ -53,9 +60,11 @@ In this call function, the input may be from multiple different dataset,
 so a list may contain both None and not None values. 
 '''
 class WhisperDataCollatorWithPadding:
-    def __init__(self, label_pad=-100, pad=3) -> None:
+    def __init__(self, label_pad=-100, pad=3, word_tokenizer:SimplifiedChineseTokenizer=None, word_embedding:ChineseTokenEmbedding=None) -> None:
         self.const_pad_label = label_pad
+        self.word_embedding = word_embedding
         self.const_pad = pad
+        self.word_tokenizer = word_tokenizer
     
     def __call__(self, input: list[SonicData]) -> SonicBatch:
         sonic_batch = SonicBatch()

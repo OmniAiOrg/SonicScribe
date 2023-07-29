@@ -16,9 +16,10 @@ initials_tokenizer = NaiveTokenizer(_initials+[NONE_TEXT, SLUR_TEXT]+AP_SP, '<|i
 finals_tokenizer = NaiveTokenizer(_finals+AP_SP, '<|final|>')
 note_tokenizer = NaiveTokenizer(notes, '<|note|>')
 slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')
-note_duration_tokenizer = NaiveTokenizer([f'<|{t/100:.2f}|>' for t in range(MAX_SECS * 100)], '<|note_duration|>')
+duration_tokenizer = NaiveTokenizer([f'{t/100:.2f}' for t in range(MAX_SECS * 100)], '<|note_duration|>')
 word_tokenizer = SimplifiedChineseTokenizer(task='<|chinese|>')
 pinyin_tokenizer = NaiveTokenizer(sorted(list(cpop_pinyin2ph_func().keys()))+AP_SP, '<|pinyin|>')
+tone_tokenizer = NaiveTokenizer(['0', '1', '2', '3', '4', '5'], '<|tone|>')
 
 if __name__ == '__main__':
     print(pinyin_tokenizer.encode(['ni','lai','le']))
@@ -27,8 +28,8 @@ if __name__ == '__main__':
     print(word_tokenizer.encode(['我','爱','你']))
     print(word_tokenizer.decode([662, 1060, 103]))
     
-    print(note_duration_tokenizer.encode(['<|1.18|>', '<|1.28|>', '<|4.35|>']))
-    print(note_duration_tokenizer.decode([123, 133, 440]))
+    print(duration_tokenizer.encode(['0.00', '1.28', '4.35']))
+    print(duration_tokenizer.decode([123, 133, 440]))
     
     print(slur_tokenizer.encode(['0','1','2']))
     print(slur_tokenizer.decode([5, 6, 7]))

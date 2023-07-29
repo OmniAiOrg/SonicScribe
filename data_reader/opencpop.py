@@ -183,7 +183,11 @@ class OpenCpop(BaseReader):
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
         audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
-
+        pinyin = [initials[i]+finals[i] if initials[i] not in ['AP', 'SP', 'SL'] else initials[i] for i in range(len(initials))]
+        note_duration_cum = [f'{sum(note_duration[:i+1]):.2f}' for i in range(len(note_duration))]
+        dur_start = [f'{0/100:.2f}']+note_duration_cum[:-1]
+        dur_end = note_duration_cum
+        return (audio_dir, hanzi_words, pinyin, note, dur_start, dur_end, slur)
         # audio
         if self.dummy_reader:
             audio = np.zeros([1,2])
@@ -221,9 +225,19 @@ class OpenCpop(BaseReader):
     
 
 if __name__ == '__main__':
+    def print_data(hanzi_words, pinyin, note, dur_start, dur_end, slur):
+        assert len(hanzi_words) == len(pinyin) and len(note) == len(dur_start) and \
+            len(dur_end) == len(slur) and len(hanzi_words) == len(note) \
+                and len(note) == len(dur_end)
+        for i in range(len(hanzi_words)):
+            print(f'{hanzi_words[i]}:{pinyin[i]:<6}[{note[i]:<7}] {slur[i]} ({dur_start[i]}->{dur_end[i]})')
+    
     oc_train = OpenCpop()
     oc_test = OpenCpop(train=False)
     field_names = [field.name for field in dataclasses.fields(SonicData)]
-    for fn in field_names:
-        print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
+    # for fn in field_names:
+    #     print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
+    (audio_dir, hanzi_words, pinyin, note, dur_start, dur_end, slur) = oc_test[12]
+    print(audio_dir)
+    print_data(hanzi_words, pinyin, note, dur_start, dur_end, slur)
     
