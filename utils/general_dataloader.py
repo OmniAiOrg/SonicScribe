@@ -141,7 +141,7 @@ class WhisperDataCollatorWithPadding:
                 self.feature_encode(data, size_of_input, mask[i], task, features, 'start', self.duratoin_tokenizer)
                 self.feature_encode(data, size_of_input, mask[i], task, features, 'end', self.duratoin_tokenizer)
 
-        features['mel'] = torch.concat([m[None, :] for m in features['mel']])
+        features['mel'] = torch.concat([m[None, :] for m in features['mel']]).to(self.device)
         features['mask'] = torch.Tensor(features['mask'])
         max_feature_len = max(feature_lengths)
 
@@ -157,7 +157,7 @@ class WhisperDataCollatorWithPadding:
             assert feature_lengths_ == feature_lengths, f'{k}, current {feature_lengths_} not equals to {feature_lengths}'
             padded_data = [torch.nn.functional.pad(torch.tensor(f), (0, max_feature_len - f_len), value=constant_values) 
                for f, f_len in zip(v, feature_lengths)]
-            features[k] = torch.stack(padded_data, dim=0)
+            features[k] = torch.stack(padded_data, dim=0).to(self.device)
 
         sonic_batch = SonicBatch()
         [setattr(sonic_batch, field_name, v) for field_name, v in features.items()]
