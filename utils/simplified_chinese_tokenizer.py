@@ -3,6 +3,7 @@ A tokenizer that map Chinese characters to tokens, 1 to 1 map.
 Traditional Chinese will be translate to simplifed one before map.
 Tokenizer should also contains the embeddings with operators.
 '''
+from typing import List
 from utils.naive_tokenizer import NaiveTokenizer
 import zhconv
 from utils.load_checkpoint import get_config, get_whisper_token_embedding
@@ -34,6 +35,10 @@ class SimplifiedChineseTokenizer(NaiveTokenizer):
         
     def contains(self, hanzi):
         return self.all_hanzi.check_content_exist(hanzi)
+    
+    def encode(self, text: List[str], strict=False, default=-1, **kwargs) -> List[int]:
+        text = [traditional_to_simplified(i) for i in text]
+        return super().encode(text, strict, default, **kwargs)
     
         
 
@@ -82,6 +87,7 @@ if __name__ == '__main__':
     '''
     from utils.preparation.init_simplified_chinese import chinese_save_to_txt
     chinese_save_to_txt()
+    print(traditional_to_simplified('馀下一点'))
     
     word_tokenizer = SimplifiedChineseTokenizer()
     print('before add_content, tokenizer size', len(word_tokenizer))

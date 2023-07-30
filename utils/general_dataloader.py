@@ -34,19 +34,20 @@ dataset_keys = [
 class SonicBatch:
     mel: Optional[Tensor] = None
     mask: Optional[Tensor] = None
-    original_text: Optional[list[str]] = None
     hanzi: Optional[Tensor] = None
     hanzi_label: Optional[Tensor] = None
     note: Optional[Tensor] = None
     note_label: Optional[Tensor] = None
-    note_duration: Optional[Tensor] = None
-    note_duration_label: Optional[Tensor] = None
+    start: Optional[Tensor] = None
+    start_label: Optional[Tensor] = None
+    end: Optional[Tensor] = None
+    end_label: Optional[Tensor] = None
     slur: Optional[Tensor] = None
     slur_label: Optional[Tensor] = None
-    initials:Optional[Tensor] = None
-    initials_label: Optional[Tensor] = None
-    finals: Optional[Tensor] = None
-    finals_label: Optional[Tensor] = None
+    pinyin:Optional[Tensor] = None
+    pinyin_label: Optional[Tensor] = None
+    tone:Optional[Tensor] = None
+    tone_label: Optional[Tensor] = None
     
 def sonic_batch_to_shape(sonic_batch: SonicBatch):
     field_names = [field.name for field in dataclasses.fields(SonicBatch)]
@@ -117,7 +118,7 @@ class WhisperDataCollatorWithPadding:
         for data in input:
             assert len(set(data.keys()) - set(dataset_keys)) == 0, 'not all keys in data legal'
             assert 'pinyin' in data.keys() or 'note' in data.keys()
-            # 0. update Chinese characters table
+            # 0. update Chinese characters table, and also transcribe traditional to simplified
             self.word_embedding.auto_update(data['hanzi'])
             # 1. get size of dataset
             size_of_input = len(data['pinyin'] or data['note'])

@@ -17,7 +17,6 @@ from utils.ph import get_initials_and_finals
 from utils.naive_tokenizer import NaiveTokenizer
 from utils.note import notes
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE, get_tokenizer
-from utils.tokenizers import *
 
 class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
@@ -30,12 +29,6 @@ class OpenCpop(BaseReader):
         self.TEXT_MAX_LENGTH = int(self.config['TEXT_MAX_LENGTH'])
         self.SAMPLE_RATE = int(self.config['SAMPLE_RATE'])
         self.audio_transcript_pair_list = self.get_dataset(train)
-        
-        self.initials_tokenizer = initials_tokenizer
-        self.finals_tokenizer = finals_tokenizer
-        self.note_tokenizer = note_tokenizer
-        self.slur_tokenizer = slur_tokenizer
-        self.word_tokenizer = word_tokenizer
         
     def get_dataset(self, train):
         dataset_txt = 'train' if train else 'test'
@@ -143,7 +136,8 @@ class OpenCpop(BaseReader):
                     except_counter += 1
                     print('parse_txt', repr(e), line)
                 # text not matter, just dor debug
-        print(f'There are {except_counter} exceptions in total when process data')
+        if except_counter > 0:
+            print(f'There are {except_counter} exceptions in total when process data')
         return data
         
     def get_audio_file_list(self, data, text_max_length=120, audio_max_sample_length=480000, sample_rate=16000, save_name = None):
