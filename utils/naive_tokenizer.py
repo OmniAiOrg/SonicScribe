@@ -26,8 +26,11 @@ class NaiveTokenizer:
     def __len__(self):
         return len(self.vocabs)
 
-    def encode(self, text: List[str], **kwargs) -> List[int]:
-        token_ids = [self.converter[t] if t in self.converter else None for t in text]
+    def encode(self, text: List[str], strict = False, default=-1, **kwargs) -> List[int]:
+        if strict:
+            token_ids = [self.converter[t] for t in text]
+        else:
+            token_ids = [self.converter[t] if t in self.converter else default for t in text]
         return token_ids
 
     def decode(self, token_ids: List[int], stop_at:int=-100, compact=False, **kwargs) -> Union[str, list[str]]:
@@ -48,8 +51,8 @@ class NaiveTokenizer:
             return output # list[str]
     
     @cached_property
-    def sot_sequence_including_notimestamps(self) -> Tuple[int]:
-        return tuple([self.sot, self.task, self.transcribe] + [self.no_timestamps])
+    def sot_task_so_on(self) -> Tuple[int]:
+        return tuple([self.sot, self.task])
 
 class DummyTokenizer(NaiveTokenizer):
     def encode(self, text: List[str], **kwargs) -> List[int]:

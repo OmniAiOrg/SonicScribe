@@ -1,3 +1,4 @@
+from typing import List
 from utils.naive_tokenizer import NaiveTokenizer, DummyTokenizer
 from whisper.tokenizer import get_tokenizer
 from utils.note import notes
@@ -10,15 +11,28 @@ config = get_config('data_reader/dataset_config.yaml')
 NONE_TEXT = str(config['BaseReader']['NONE_TEXT'])
 SLUR_TEXT = str(config['BaseReader']['SLUR_TEXT'])
 MAX_SECS = int(config['BaseReader']['MAX_SECS'])
-AP_SP = ['AP','SP']
+AP_SP_SL = ['AP','SP','SL','NO']
 _initials, _finals = get_initials_and_finals()
-initials_tokenizer = NaiveTokenizer(_initials+[NONE_TEXT, SLUR_TEXT]+AP_SP, '<|initial|>')
-finals_tokenizer = NaiveTokenizer(_finals+AP_SP, '<|final|>')
+
+class PinyinTokenizer(NaiveTokenizer):
+    def __init__(self, task: str) -> None:
+        self.pinyin_map = cpop_pinyin2ph_func()
+        for k, v in self.pinyin_map.items():
+            self.pinyin_map[k] = v.replace(" ", "")
+        vocabs: List[str] = AP_SP_SL+sorted(list(self.pinyin_map.values()))
+        super().__init__(vocabs, task)
+        
+    def encode(self, text: List[str], strict=False, **kwargs) -> List[int]:
+        text = [i if i not in self.pinyin_map.keys() else self.pinyin_map[i] for i in text]
+        return super().encode(text, strict, **kwargs)
+
+initials_tokenizer = NaiveTokenizer([NONE_TEXT, SLUR_TEXT]+AP_SP_SL+_initials, '<|initial|>')
+finals_tokenizer = NaiveTokenizer(AP_SP_SL+_finals, '<|final|>')
 note_tokenizer = NaiveTokenizer(notes, '<|note|>')
 slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')
 duration_tokenizer = NaiveTokenizer([f'{t/100:.2f}' for t in range(MAX_SECS * 100)], '<|note_duration|>')
-word_tokenizer = SimplifiedChineseTokenizer(task='<|chinese|>')
-pinyin_tokenizer = NaiveTokenizer(sorted(list(cpop_pinyin2ph_func().keys()))+AP_SP, '<|pinyin|>')
+word_tokenizer = SimplifiedChineseTokenizer(AP_SP_SL, task='<|chinese|>')
+pinyin_tokenizer = PinyinTokenizer('<|pinyin|>')
 tone_tokenizer = NaiveTokenizer(['0', '1', '2', '3', '4', '5'], '<|tone|>')
 
 if __name__ == '__main__':
@@ -42,4 +56,7 @@ if __name__ == '__main__':
     
     print(initials_tokenizer.encode(['l','m','n']))
     print(initials_tokenizer.decode([14, 15, 16]))
+    
+    print(tone_tokenizer.encode(['0', '1', '2']))
+    print(tone_tokenizer.decode([5, 6, 7]))
     

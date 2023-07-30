@@ -18,7 +18,8 @@ class BaseReader(torch.utils.data.Dataset):
     def __init__(self, train) -> None:
         self.dataset_name = type(self).__name__
         self.config = self.get_config()
-        self.print_config()
+        if train:
+            self.print_config()
         self.train = train
         self.audio_transcript_pair_list = None
         self.path:str = self.config['path']

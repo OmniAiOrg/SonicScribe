@@ -18,7 +18,7 @@ def get_whisper_checkpoint(name='tiny', config_file = SETTINGS_YAML):
         checkpoint = torch.load(fp, map_location='cpu')
         return checkpoint
     
-def get_whisper_token_embedding(name='tiny', config_file = SETTINGS_YAML):
+def get_whisper_token_embedding(name='tiny', config_file = SETTINGS_YAML) -> torch.Tensor:
     checkpoint = get_whisper_checkpoint(name, config_file)
     token_embedding = checkpoint['model_state_dict']['decoder.token_embedding.weight']
     assert token_embedding.shape[0] > 50000 and token_embedding.shape[1] > 300, token_embedding.shape

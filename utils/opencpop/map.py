@@ -6,3 +6,6 @@ def cpop_pinyin2ph_func():
             elements = [x.strip() for x in line.split('|') if x.strip() != '']
             pinyin2phs[elements[0]] = elements[1]
     return pinyin2phs
+
+if __name__ == '__main__':
+    print(cpop_pinyin2ph_func())

@@ -13,7 +13,7 @@ from tqdm import tqdm
 import pickle
 from typing import Dict, List, Optional, Tuple
 import glob
-from utils.general_dataloader import SonicData
+# from utils.general_dataloader import SonicData
 from utils.tokenizers import *
 from utils.whisper_duration_auto_tag import WhisperDurationTagger
 from pypinyin import pinyin, lazy_pinyin, Style
@@ -116,37 +116,18 @@ class Openslr33(BaseReader):
         hanzi_words = [i for i in text]
         pinyin = [lazy_pinyin(i)[0] for i in text]
         tone = [i[-1] if len(i)>0 and i[-1] in ['1','2','3','4','5'] else '0' for i in [lazy_pinyin(i, style=Style.FINALS_TONE3)[0] for i in text]]
-        return (wav_path, hanzi_words, pinyin, tone, dur_start, dur_end)
-        wav_path = self.audio_path + wav_path
-        # words
-        hanzi_words = [word for word in text]
-        self.word_tokenizer.add_content
-        words= [*self.word_tokenizer.sot_sequence_including_notimestamps] + self.word_tokenizer.encode(hanzi_words)
-
-        # audio
-        if self.dummy_reader:
-            audio = np.zeros([1,2])
-        else:
-            audio = self.load_wave(wav_path, sample_rate=self.SAMPLE_RATE)
-        audio = audio.flatten()
-        assert audio.shape[-1] < whisper.audio.N_SAMPLES # or it will be cut
-        audio = whisper.pad_or_trim(audio)
-        mel = whisper.log_mel_spectrogram(audio)
-
-        return words, text, duration_start, duration_end
-
-        return SonicData(
-            mel,
-            words=words,
-            original_text=text,
-            # TODO: initials, finals from pypinyin; note_duration from whisper auto tag
-            initials=initials,
-            finals=finals,
-            note_duration=note_duration,
-        )
-        
-    
-    
+        dur_start = [f'{i:.2f}' for i in dur_start]
+        dur_end = [f'{i:.2f}' for i in dur_end]
+        assert len(hanzi_words) == len(pinyin) and len(tone) == len(dur_start) and \
+            len(dur_end) == len(dur_start) and len(hanzi_words) == len(tone)
+        return {
+            'audio': self.audio_path+wav_path,
+            'hanzi': hanzi_words,
+            'pinyin': pinyin,
+            'tone': tone,
+            'start': dur_start,
+            'end': dur_end
+        }
 
 if __name__ == '__main__':
     def print_data(hanzi_words, pinyin, tone, dur_start, dur_end):
@@ -158,7 +139,24 @@ if __name__ == '__main__':
     openslr_33_test = Openslr33(train=False)
     openslr_33_train = Openslr33()
     print(len(openslr_33_train), len(openslr_33_test))
-    (wav_path, hanzi_words, pinyin, tone, dur_start, dur_end) = openslr_33_train[34]
-    print(wav_path)
-    print_data(hanzi_words, pinyin, tone, dur_start, dur_end)
+    data = openslr_33_train[56]
+    print(data['audio'])
+    print_data(data['hanzi'], data['pinyin'], data['tone'], data['start'], data['end'])
+    '''
+    环:huan  [2] (0.32->0.80)
+    比:bi    [3] (0.80->1.02)
+    六:liu   [4] (1.02->1.16)
+    月:yue   [4] (1.16->1.38)
+    份:fen   [4] (1.38->1.66)
+    上:shang [4] (1.66->1.90)
+    升:sheng [1] (1.90->2.24)
+    百:bai   [3] (2.24->2.30)
+    分:fen   [1] (2.30->2.56)
+    之:zhi   [1] (2.56->2.90)
+    一:yi    [1] (2.90->3.20)
+    十:shi   [2] (3.20->3.44)
+    五:wu    [3] (3.44->3.66)
+    点:dian  [3] (3.66->3.86)
+    六:liu   [4] (3.86->4.14)
+    '''
     

@@ -7,7 +7,6 @@ from utils.tokenizers import pinyin_tokenizer
 
 class PinyinTokenEmbedding(nn.Module):
     def __init__(self, 
-                 n_state, 
                  tokenizer: NaiveTokenizer, 
                  model='tiny', 
                  init_embedding_from_whisper=True) -> None:
@@ -17,9 +16,11 @@ class PinyinTokenEmbedding(nn.Module):
         tokenizer: will be updated in self.update_table()
         '''
         super().__init__()
-        self.pinyin_token_embedding = nn.Embedding(len(tokenizer), n_state)
         self.tokenizer = tokenizer
         self.model = model
+        self.whisper_official_token_embedding = get_whisper_token_embedding(self.model)
+        n_state = self.whisper_official_token_embedding.shape[1]
+        self.pinyin_token_embedding = nn.Embedding(len(tokenizer), n_state)
         if init_embedding_from_whisper:
             self.initialize_embedding()
         print('initial size of PinyinTokenEmbedding is', len(self.tokenizer))
@@ -32,8 +33,7 @@ class PinyinTokenEmbedding(nn.Module):
         '''
         single_token_map = get_all_chinese_with_single_whisper_token(False)
         multiple_token_map = get_all_chinese_with_multuple_whisper_token(False)
-        whisper_official_token_embedding = get_whisper_token_embedding(self.model)
-        for id in range(len(tokenizer)):
+        for id in range(len(self.tokenizer)):
             pinyin = self.tokenizer.decode([id])[0]
             if pinyin in single_token_map:
                 tokens = [single_token_map[pinyin]]
@@ -43,7 +43,7 @@ class PinyinTokenEmbedding(nn.Module):
                 continue
             # tokens are like [123, 54], here get embedding of these tokens from token_embedding
             # and then calculate the mean of them, then save back to self.pinyin_token_embedding[id]
-            embeddings = whisper_official_token_embedding[tokens]
+            embeddings = self.whisper_official_token_embedding[tokens]
             mean_embedding = embeddings.mean(dim=0)
             self.pinyin_token_embedding.weight.data[self.tokenizer.encode(pinyin)[0]] = mean_embedding
             
@@ -63,5 +63,5 @@ class PinyinTokenEmbedding(nn.Module):
 if __name__ == '__main__':
     tokenizer = pinyin_tokenizer
     print('tokenizer size', len(tokenizer))
-    cte = PinyinTokenEmbedding(384, tokenizer, 'tiny')
+    cte = PinyinTokenEmbedding(tokenizer, 'tiny')
     print('size', len(cte))

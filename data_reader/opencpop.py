@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Tuple
 from utils.ph import get_initials_and_finals
 from utils.naive_tokenizer import NaiveTokenizer
 from utils.note import notes
-from utils.general_dataloader import SonicData
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE, get_tokenizer
 from utils.tokenizers import *
 
@@ -24,7 +23,7 @@ class OpenCpop(BaseReader):
     def __init__(self, train=True) -> None:
         super().__init__(train)
         # prepare the dataset and save to pickle for next time to use
-        self.pickle_path = self.config['path']+'/temp'
+        self.pickle_path = self.config['path']+'/temp2'
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
         self.SLUR_TEXT = str(self.config['SLUR_TEXT'])
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])
@@ -158,7 +157,8 @@ class OpenCpop(BaseReader):
         # initials, finals = get_initials_and_finals()
         for (id, text, initials, finals, note, note_duration, slur, hanzi_words) in tqdm(data):
             # check whether audio exist and legal
-            audio_dir = self.path+'/wavs/'+id+'.wav'
+            audio_relative = '/wavs/'+id+'.wav'
+            audio_dir = self.path+audio_relative
             if not os.path.isfile(audio_dir):
                 print(f"{audio_dir} not exist")
                 continue
@@ -166,7 +166,7 @@ class OpenCpop(BaseReader):
             if len(text) > text_max_length or len(audio) > audio_max_sample_length:
                 print(audio_dir, len(text), len(audio))
                 continue
-            audio_transcript_pair_list.append((str(audio_dir), text, initials, finals, note, note_duration, slur, hanzi_words))
+            audio_transcript_pair_list.append((str(audio_relative), text, initials, finals, note, note_duration, slur, hanzi_words))
         # cache to pickle 
         if save_name is not None:
             if not os.path.exists(self.pickle_path):
@@ -183,46 +183,23 @@ class OpenCpop(BaseReader):
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)
         audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
-        pinyin = [initials[i]+finals[i] if initials[i] not in ['AP', 'SP', 'SL'] else initials[i] for i in range(len(initials))]
+        pinyin = [initials[i]+finals[i] if initials[i] not in ['AP', 'SP', 'SL', 'NO'] else initials[i] for i in range(len(initials))]
         note_duration_cum = [f'{sum(note_duration[:i+1]):.2f}' for i in range(len(note_duration))]
         dur_start = [f'{0/100:.2f}']+note_duration_cum[:-1]
         dur_end = note_duration_cum
-        return (audio_dir, hanzi_words, pinyin, note, dur_start, dur_end, slur)
-        # audio
-        if self.dummy_reader:
-            audio = np.zeros([1,2])
-        else:
-            audio = self.load_wave(audio_dir, sample_rate=self.SAMPLE_RATE)
-        audio = audio.flatten()
-        assert audio.shape[-1] < whisper.audio.N_SAMPLES # or it will be cut
-        audio = whisper.pad_or_trim(audio)
-        mel = whisper.log_mel_spectrogram(audio)
+        assert len(hanzi_words) == len(pinyin) and len(note) == len(dur_start) and \
+            len(dur_end) == len(slur) and len(hanzi_words) == len(note) \
+                and len(note) == len(dur_end)
+        return {
+            'audio': self.path + audio_dir,
+            'hanzi': hanzi_words,
+            'pinyin': pinyin,
+            'note': note,
+            'start': dur_start,
+            'end': dur_end,
+            'slur': slur
+        }
 
-        num_sot = [0]*len([*self.note_tokenizer.sot_sequence_including_notimestamps])
-
-        initials = [*self.initials_tokenizer.sot_sequence_including_notimestamps] + self.initials_tokenizer.encode(initials)
-        finals = [*self.finals_tokenizer.sot_sequence_including_notimestamps] + self.finals_tokenizer.encode(finals)
-        
-        note = [*self.note_tokenizer.sot_sequence_including_notimestamps] + self.note_tokenizer.encode(note)
-        note_duration = num_sot + note_duration
-        slur = [*self.slur_tokenizer.sot_sequence_including_notimestamps] + self.slur_tokenizer.encode(slur)
-        # TODO: words 是有问题的
-        words= [*self.word_tokenizer.sot_sequence_including_notimestamps] + self.word_tokenizer.encode(hanzi_words)
-
-        # text, phoneme, note, note_duration, slur
-        return SonicData(
-            mel, 
-            words=words,
-            original_text=text,
-            initials=initials,
-            finals=finals,
-            note=note,
-            note_duration=note_duration,
-            slur=slur,
-        )
-        
-    
-    
 
 if __name__ == '__main__':
     def print_data(hanzi_words, pinyin, note, dur_start, dur_end, slur):
@@ -234,10 +211,26 @@ if __name__ == '__main__':
     
     oc_train = OpenCpop()
     oc_test = OpenCpop(train=False)
-    field_names = [field.name for field in dataclasses.fields(SonicData)]
-    # for fn in field_names:
-    #     print(fn, len(getattr(oc_test[0], fn)) if getattr(oc_test[0], fn) is not None else None)
-    (audio_dir, hanzi_words, pinyin, note, dur_start, dur_end, slur) = oc_test[12]
-    print(audio_dir)
-    print_data(hanzi_words, pinyin, note, dur_start, dur_end, slur)
+    print(len(oc_test), len(oc_train))
+    data = oc_test[12]
+    print(data['audio'])
+    print_data(data['hanzi'], data['pinyin'], data['note'], data['start'], data['end'], data['slur'])
+    '''
+    能:neng  [A#3/Bb3] 0 (0.00->0.25)
+    不:bu    [G4     ] 0 (0.25->0.46)
+    能:neng  [G4     ] 0 (0.46->0.74)
+    给:gei   [G4     ] 0 (0.74->1.00)
+    我:wo    [F4     ] 0 (1.00->1.26)
+    一:yi    [F4     ] 0 (1.26->1.59)
+    首:shou  [D#4/Eb4] 0 (1.59->2.23)
+    SP:SP    [rest   ] 0 (2.23->2.27)
+    歌:ge    [D#4/Eb4] 0 (2.27->2.53)
+    的:de    [F4     ] 0 (2.53->2.65)
+    时:shi   [F4     ] 0 (2.65->2.88)
+    SL:SL    [G4     ] 1 (2.88->3.14)
+    SP:SP    [rest   ] 0 (3.14->3.25)
+    间:jian  [F4     ] 0 (3.25->3.84)
+    AP:AP    [rest   ] 0 (3.84->4.01)
+    SP:SP    [rest   ] 0 (4.01->4.06)
+    '''
     

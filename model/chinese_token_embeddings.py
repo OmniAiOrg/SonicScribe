@@ -9,7 +9,6 @@ from utils.word_tokenizer import WhisperOfficialTokenizer
 class ChineseTokenEmbedding(nn.Module):
     def __init__(self, 
                  size, 
-                 n_state, 
                  tokenizer: SimplifiedChineseTokenizer, 
                  model='tiny', 
                  init_embedding_from_whisper=True) -> None:
@@ -19,10 +18,11 @@ class ChineseTokenEmbedding(nn.Module):
         tokenizer: will be updated in self.update_table()
         '''
         super().__init__()
-        self.chinese_token_embedding = nn.Embedding(size, n_state)
         self.tokenizer = tokenizer
         self.model = model
         self.whisper_official_token_embedding = get_whisper_token_embedding(self.model)
+        n_state = self.whisper_official_token_embedding.shape[1]
+        self.chinese_token_embedding = nn.Embedding(size, n_state)
         self.whisper_official_word_tokenizer = WhisperOfficialTokenizer()
         if init_embedding_from_whisper:
             self.initialize_embedding()
@@ -86,7 +86,8 @@ class ChineseTokenEmbedding(nn.Module):
 if __name__ == '__main__':
     tokenizer = SimplifiedChineseTokenizer()
     print('tokenizer size', len(tokenizer))
-    cte = ChineseTokenEmbedding(5000, 384, tokenizer, 'tiny')
+    cte = ChineseTokenEmbedding(5000, tokenizer, 'tiny')
     print('size', len(cte))
-    cte.auto_update('世界之大无奇不有2hello泗')
+    cte.auto_update('馀')
     print('size', len(cte))
+    print(tokenizer.encode('馀'))
