@@ -46,6 +46,8 @@ def is_cjk(char):
 
 def is_chinese(c):
     # return True
+    if len(c) != 1:
+        return False
     return is_cjk(c)
 
 def check_chinese_words_with_single_whisper_token(verbose=True):
