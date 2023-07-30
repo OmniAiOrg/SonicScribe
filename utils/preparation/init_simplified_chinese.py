@@ -5,10 +5,10 @@ from utils.simplified_chinese_tokenizer import traditional_to_simplified
 
 class ChineseCharacterCollector:
     characters = set()
-    def add(self, sentence: str):
+    def add(self, sentence: str, strict=True):
         sentence = traditional_to_simplified(sentence)
         for character in sentence:
-            if is_chinese(character):
+            if is_chinese(character) or not strict:
                 self.characters.add(character)
             else:
                 print(f'[warn] not Chinese: {character}')
@@ -46,10 +46,10 @@ def chinese_save_to_txt():
     
     # save openslr33
     # save Chinese characters that's different in simplified and traditional
-    import pkgutil
-    import json
-    zhcdict = pkgutil.get_data('zhconv', 'zhcdict.json')
-    zhcdicts = json.loads(zhcdict.decode('utf-8'))
+    # import pkgutil
+    # import json
+    # zhcdict = pkgutil.get_data('zhconv', 'zhcdict.json')
+    # zhcdicts = json.loads(zhcdict.decode('utf-8'))
     # ccc.add(zhcdicts['SIMPONLY'].split('𠀾')[0])
     
     print(f'There are totally {len(ccc)} Chinese characters saved.')
