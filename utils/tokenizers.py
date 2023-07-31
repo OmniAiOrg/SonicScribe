@@ -35,7 +35,23 @@ word_tokenizer = SimplifiedChineseTokenizer(AP_SP_SL, task='<|chinese|>')
 pinyin_tokenizer = PinyinTokenizer('<|pinyin|>')
 tone_tokenizer = NaiveTokenizer(['0', '1', '2', '3', '4', '5'], '<|tone|>')
 
+all_tokenizers:list[NaiveTokenizer] = [
+    initials_tokenizer,
+    finals_tokenizer,
+    note_tokenizer,
+    slur_tokenizer,
+    duration_tokenizer,
+    word_tokenizer,
+    pinyin_tokenizer,
+    tone_tokenizer
+    ]
+
 if __name__ == '__main__':
+    for tokenizer in all_tokenizers:
+        assert tokenizer.pad == word_tokenizer.pad
+        assert tokenizer.pad_label == word_tokenizer.pad_label
+        assert tokenizer.unknow == word_tokenizer.unknow
+    
     print(pinyin_tokenizer.encode(['ni','lai','le']))
     print(pinyin_tokenizer.decode([229, 173, 177]))
     
