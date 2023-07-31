@@ -14,7 +14,6 @@ BaseReader:
   AUDIO_MAX_LENGTH: 480000
   SAMPLE_RATE: 16000
   MAX_SECS: 30 # allow 30s = AUDIO_MAX_LENGTH/SAMPLE_RATE
-  SEED: 3407
   VERIFY_AUDIO: true # If true, very slow, but only need to generate pickle once. If you trust the dataset is 100% correct, set to false
   DISABLE_TQDM: false # If true, not show finish rate bar in terminal
 

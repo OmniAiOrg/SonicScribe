@@ -26,7 +26,7 @@ class PinyinTokenizer(NaiveTokenizer):
         text = [i if i not in self.pinyin_map.keys() else self.pinyin_map[i] for i in text]
         return super().encode(text, strict, **kwargs)
 
-initials_tokenizer = NaiveTokenizer([NONE_TEXT, SLUR_TEXT]+AP_SP_SL+_initials, '<|initial|>')
+initials_tokenizer = NaiveTokenizer(AP_SP_SL+[NONE_TEXT, SLUR_TEXT]+_initials, '<|initial|>')
 finals_tokenizer = NaiveTokenizer(AP_SP_SL+_finals, '<|final|>')
 note_tokenizer = NaiveTokenizer(notes, '<|note|>')
 slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')

@@ -3,3 +3,6 @@ whisper:
 
 tokenizer:
   simplified_chinese_characters: ./assets/simplified_chinese.txt
+
+trainer:
+  seed: 3407

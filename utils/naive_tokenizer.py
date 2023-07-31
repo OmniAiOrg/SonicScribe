@@ -10,7 +10,7 @@ class NaiveTokenizer:
     
     def __init__(self, vocabs:List[str], task:str) -> None:
         assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>', '<|pinyin|>', '<|tone|>'], task
-        self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>']
+        self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>','<|pad|>','<|pad_label|>','<|unknow|>']
         self.vocabs:List[str] = [*self.spetial_code, task, *vocabs]
         self.converter: Dict[str, int] = {}
         
@@ -22,6 +22,9 @@ class NaiveTokenizer:
         self.no_timestamps: int = self.converter["<|notimestamps|>"]
         self.eot: int = self.converter["<|endoftext|>"]
         self.task: int = self.converter[task]
+        self.pad: int = self.converter["<|pad|>"]
+        self.pad_label: int = self.converter["<|pad_label|>"]
+        self.unknow: int = self.converter["<|unknow|>"]
         
     def __len__(self):
         return len(self.vocabs)

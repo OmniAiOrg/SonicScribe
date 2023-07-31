@@ -3,8 +3,7 @@ All data reader will not convert original symbol to tokens. Instead, all tokeniz
 work in this dataloader. This means mask could also be generatted in here.
 '''
 
-import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import torch
 from torch import Tensor
 import numpy as np
@@ -49,8 +48,11 @@ class SonicBatch:
     tone:Optional[Tensor] = None
     tone_label: Optional[Tensor] = None
     
+def get_field_names(cls: type, exclude: List[str] = []) -> List[str]:
+    return [f.name for f in fields(cls) if f.name not in exclude]
+    
 def sonic_batch_to_shape(sonic_batch: SonicBatch):
-    field_names = [field.name for field in dataclasses.fields(SonicBatch)]
+    field_names = [field.name for field in fields(SonicBatch)]
     sonic_batch_shape = {}
     for field_name in field_names:
         value = getattr(sonic_batch, field_name)
@@ -65,16 +67,17 @@ In this call function, the input may be from multiple different dataset,
 so a list may contain both None and not None values. 
 '''
 class WhisperDataCollatorWithPadding:
-    def __init__(self, label_pad=-1, pad=-2, unkown=-3, n_state=384, model='tiny', device='cpu') -> None:
-        self.const_pad_label = label_pad
-        self.const_pad = pad
-        self.unknow = unkown
+    def __init__(self, model='tiny', device='cpu') -> None:
         self.word_tokenizer = word_tokenizer
         self.pinyin_tokenizer = pinyin_tokenizer
         self.note_tokenizer = note_tokenizer
         self.tone_tokenizer = tone_tokenizer
         self.slur_tokenizer = slur_tokenizer
         self.duratoin_tokenizer = duration_tokenizer
+        self.const_pad_label = word_tokenizer.pad_label
+        self.const_pad = word_tokenizer.pad
+        self.unknow = word_tokenizer.unknow
+        
         all_config = get_config('data_reader/dataset_config.yaml')
         base_config = all_config['BaseReader']
         self.SAMPLE_RATE = base_config['SAMPLE_RATE']
