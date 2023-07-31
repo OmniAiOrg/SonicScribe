@@ -67,7 +67,7 @@ In this call function, the input may be from multiple different dataset,
 so a list may contain both None and not None values. 
 '''
 class WhisperDataCollatorWithPadding:
-    def __init__(self, model='tiny', device='cpu') -> None:
+    def __init__(self, model='tiny') -> None:
         self.word_tokenizer = word_tokenizer
         self.pinyin_tokenizer = pinyin_tokenizer
         self.note_tokenizer = note_tokenizer
@@ -84,7 +84,6 @@ class WhisperDataCollatorWithPadding:
         # there are two special embedding should be initialized here
         self.word_embedding = ChineseTokenEmbedding(5000, self.word_tokenizer, model)
         self.pinyin_embedding = PinyinTokenEmbedding(self.pinyin_tokenizer, model)
-        self.device = device
         
     def load_wave(self, wave_path, sample_rate:int=16000) -> torch.Tensor:
         waveform, sr = torchaudio.load(wave_path, normalize=True)
@@ -100,8 +99,8 @@ class WhisperDataCollatorWithPadding:
         mel = whisper.log_mel_spectrogram(audio)
         return mel
         
-    def get_keys_mask(self, data: dict) -> list[bool]:
-        return [dataset_keys[i] in data.keys() for i in range(len(dataset_keys))]
+    def get_keys_mask(self, data: dict) -> list[int]:
+        return [1 if dataset_keys[i] in data.keys() else 0 for i in range(len(dataset_keys))]
     
     def feature_encode(self, data:dict, size_of_input:int, mask:bool, task:str, features: Dict[str, list], aim_task:str, tokenizer:NaiveTokenizer) -> None:
         if task == aim_task:
@@ -144,8 +143,8 @@ class WhisperDataCollatorWithPadding:
                 self.feature_encode(data, size_of_input, mask[i], task, features, 'start', self.duratoin_tokenizer)
                 self.feature_encode(data, size_of_input, mask[i], task, features, 'end', self.duratoin_tokenizer)
 
-        features['mel'] = torch.concat([m[None, :] for m in features['mel']]).to(self.device)
-        features['mask'] = torch.Tensor(features['mask'])
+        features['mel'] = torch.concat([m[None, :] for m in features['mel']])
+        features['mask'] = torch.Tensor(features['mask']).to(dtype=torch.int32)
         max_feature_len = max(feature_lengths)
 
         for k, v in features.items():
@@ -160,7 +159,7 @@ class WhisperDataCollatorWithPadding:
             assert feature_lengths_ == feature_lengths, f'{k}, current {feature_lengths_} not equals to {feature_lengths}'
             padded_data = [torch.nn.functional.pad(torch.tensor(f), (0, max_feature_len - f_len), value=constant_values) 
                for f, f_len in zip(v, feature_lengths)]
-            features[k] = torch.stack(padded_data, dim=0).to(self.device)
+            features[k] = torch.stack(padded_data, dim=0)
 
         sonic_batch = SonicBatch()
         [setattr(sonic_batch, field_name, v) for field_name, v in features.items()]

@@ -16,6 +16,7 @@ TODO:
 - [ ] Create a loss function for a mixture of different kinds of datasets.
 - [x] Create a data reader to mix different kinds of datasets.
 - [ ] Create a trainer that can train this modified whisper (SonicScribe).
+- [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.
 - [ ] Link this ASR with TTS like diffsinger.

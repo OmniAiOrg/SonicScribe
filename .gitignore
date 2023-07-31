@@ -3,4 +3,4 @@
 *.out
 assets/sample_audio/
 assets/simplified_chinese.txt
-assets/simplified_chinese*
+lightning_logs/*

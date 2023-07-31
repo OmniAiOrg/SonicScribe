@@ -29,7 +29,7 @@ class PinyinTokenizer(NaiveTokenizer):
 initials_tokenizer = NaiveTokenizer(AP_SP_SL+[NONE_TEXT, SLUR_TEXT]+_initials, '<|initial|>')
 finals_tokenizer = NaiveTokenizer(AP_SP_SL+_finals, '<|final|>')
 note_tokenizer = NaiveTokenizer(notes, '<|note|>')
-slur_tokenizer = NaiveTokenizer(['0', '1', '2'], '<|slur|>')
+slur_tokenizer = NaiveTokenizer(['0', '1'], '<|slur|>')
 duration_tokenizer = NaiveTokenizer([f'{t/100:.2f}' for t in range(MAX_SECS * 100)], '<|note_duration|>')
 word_tokenizer = SimplifiedChineseTokenizer(AP_SP_SL, task='<|chinese|>')
 pinyin_tokenizer = PinyinTokenizer('<|pinyin|>')
@@ -61,8 +61,8 @@ if __name__ == '__main__':
     print(duration_tokenizer.encode(['0.00', '1.28', '4.35']))
     print(duration_tokenizer.decode([123, 133, 440]))
     
-    print(slur_tokenizer.encode(['0','1','2']))
-    print(slur_tokenizer.decode([5, 6, 7]))
+    print(slur_tokenizer.encode(['0','1','1']))
+    print(slur_tokenizer.decode([5, 6, 6]))
     
     print(note_tokenizer.encode(['<|endoftext|>', 'A#4/Bb4', 'A5']))
     print(note_tokenizer.decode([3, 6, 9]))

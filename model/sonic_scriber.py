@@ -53,10 +53,10 @@ class CustomTextDecoder(nn.Module):
         
         self.word_embedding = collate_fn.word_embedding.chinese_token_embedding
         self.pinyin_embedding = collate_fn.pinyin_embedding.pinyin_token_embedding
-        self.tone_token_embedding = nn.Embedding(len(collate_fn.tone_tokenizer.vocabs)+1, n_state)
-        self.note_token_embedding = nn.Embedding(len(collate_fn.note_tokenizer.vocabs)+1, n_state)
-        self.duration_token_embedding = nn.Embedding(len(collate_fn.duratoin_tokenizer.vocabs)+1, n_state)
-        self.slur_token_embedding = nn.Embedding(len(collate_fn.slur_tokenizer.vocabs)+1, n_state)
+        self.tone_token_embedding = nn.Embedding(len(collate_fn.tone_tokenizer.vocabs), n_state)
+        self.note_token_embedding = nn.Embedding(len(collate_fn.note_tokenizer.vocabs), n_state)
+        self.duration_token_embedding = nn.Embedding(len(collate_fn.duratoin_tokenizer.vocabs), n_state)
+        self.slur_token_embedding = nn.Embedding(len(collate_fn.slur_tokenizer.vocabs), n_state)
         self.positional_embedding = nn.Parameter(torch.empty(n_ctx, n_state))
         
         torch.nn.init.xavier_uniform_(self.positional_embedding)
@@ -79,8 +79,8 @@ class CustomTextDecoder(nn.Module):
         
         self.filed_names = [i for i in dataset_keys if i not in ['audio']]
         print('filed_names', self.filed_names)
-        self.head_ln = {}
-        self.head_block = {}
+        self.head_ln = nn.ModuleDict()
+        self.head_block = nn.ModuleDict()
         for field_name in self.filed_names:
             self.head_ln[field_name] = LayerNorm(n_state)
             self.head_block[field_name] = ResidualAttentionBlock(n_state, n_head, cross_attention=True)
@@ -162,15 +162,15 @@ class SonicScriber(Whisper):
         return self.decoder(batch, self.encoder(batch.mel))
         
 if __name__ == '__main__':
-    from torch.utils.data import ConcatDataset, DataLoader
+    from torch.utils.data import DataLoader
     print('torch=', torch.__version__, 'lightling=', pl.__version__)
     config = get_config()
     SEED = int(config['trainer']['seed'])
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    # DEVICE = "cpu"
+    DEVICE = "cpu"
     seed_everything(SEED, workers=True)
     collate_fn=WhisperDataCollatorWithPadding()
-    sonic_scriber = SonicScriber('tiny', collate_fn=collate_fn)
+    sonic_scriber = SonicScriber('tiny', collate_fn=collate_fn).to(DEVICE)
     
     from data_reader.opencpop import OpenCpop
     from data_reader.openslr_33 import Openslr33
@@ -182,10 +182,11 @@ if __name__ == '__main__':
     loader = DataLoader(weighted_dataset, 
                             batch_size=10,
                             shuffle=True,
-                            collate_fn=collate_fn
+                            collate_fn=collate_fn,
+                            pin_memory=True,
+                            pin_memory_device = DEVICE
                           )
     for b in loader:
-        # print(b)
         logits = sonic_scriber.forward(b)
         for k, v in logits.items():
             print(f'{k:<8}', v.shape)
