@@ -35,44 +35,46 @@ word_tokenizer = SimplifiedChineseTokenizer(AP_SP_SL, task='<|chinese|>')
 pinyin_tokenizer = PinyinTokenizer('<|pinyin|>')
 tone_tokenizer = NaiveTokenizer(['0', '1', '2', '3', '4', '5'], '<|tone|>')
 
-all_tokenizers:list[NaiveTokenizer] = [
-    initials_tokenizer,
-    finals_tokenizer,
-    note_tokenizer,
-    slur_tokenizer,
-    duration_tokenizer,
-    word_tokenizer,
-    pinyin_tokenizer,
-    tone_tokenizer
-    ]
+all_tokenizers:dict[str, NaiveTokenizer] = {
+    'initials': initials_tokenizer,
+    'finals': finals_tokenizer,
+    'note': note_tokenizer,
+    'slur': slur_tokenizer,
+    'duration': duration_tokenizer,
+    'start': duration_tokenizer,
+    'end': duration_tokenizer,
+    'hanzi': word_tokenizer,
+    'pinyin': pinyin_tokenizer,
+    'tone': tone_tokenizer
+}
 
 if __name__ == '__main__':
-    for tokenizer in all_tokenizers:
+    for tokenizer in all_tokenizers.values():
         assert tokenizer.pad == word_tokenizer.pad
         assert tokenizer.pad_label == word_tokenizer.pad_label
         assert tokenizer.unknow == word_tokenizer.unknow
     
     print(pinyin_tokenizer.encode(['ni','lai','le']))
-    print(pinyin_tokenizer.decode([229, 173, 177]))
+    print(pinyin_tokenizer.decode([236, 180, 184]))
     
     print(word_tokenizer.encode(['我','爱','你']))
-    print(word_tokenizer.decode([662, 1060, 103]))
+    print(word_tokenizer.decode([1336, 2259, 174]))
     
     print(duration_tokenizer.encode(['0.00', '1.28', '4.35']))
-    print(duration_tokenizer.decode([123, 133, 440]))
+    print(duration_tokenizer.decode([8, 136, 443]))
     
     print(slur_tokenizer.encode(['0','1','1']))
-    print(slur_tokenizer.decode([5, 6, 6]))
+    print(slur_tokenizer.decode([8, 9, 9]))
     
     print(note_tokenizer.encode(['<|endoftext|>', 'A#4/Bb4', 'A5']))
-    print(note_tokenizer.decode([3, 6, 9]))
+    print(note_tokenizer.decode([3, 9, 12]))
     
     print(finals_tokenizer.encode(['ei', 'en', 'eng']))
-    print(finals_tokenizer.decode([11, 12, 13]))
+    print(finals_tokenizer.decode([18, 19, 20]))
     
     print(initials_tokenizer.encode(['l','m','n']))
-    print(initials_tokenizer.decode([14, 15, 16]))
+    print(initials_tokenizer.decode([23, 24, 25]))
     
     print(tone_tokenizer.encode(['0', '1', '2']))
-    print(tone_tokenizer.decode([5, 6, 7]))
+    print(tone_tokenizer.decode([8, 9, 10]))
     

@@ -40,7 +40,7 @@ class Config:
     gradient_accumulation_steps = 3
     sample_rate = SAMPLE_RATE
     limit_val_batches = 0.25
-    overfit_batches = 0.03 # 0 by default. Set to 0.01 for overfit sanity check
+    overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     
 # 2. Trainer preparation
 
@@ -55,14 +55,20 @@ tflogger = TensorBoardLogger(
 
 checkpoint_callback = ModelCheckpoint(
     dirpath=f"{check_output_dir}/checkpoint/{train_id}",
-    filename="checkpoint-{epoch:04d}",
-    save_top_k=1,
+    filename="checkpoint-{epoch:03d}-{val_loss:.2f}",
+    save_top_k=5,
     monitor = 'val_loss',
     save_last=True,
 )
 
-callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
+latest_ckpt = Path(f"{check_output_dir}/checkpoint/my.ck")
+if latest_ckpt.is_file():
+    ckpt_path = latest_ckpt
+else:
+    ckpt_path = None
     
+callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
+
 cfg = Config()
 trainer = Trainer(
     accelerator=DEVICE,
@@ -99,5 +105,10 @@ def get_dataloader(train=True) -> DataLoader:
 train_dataloader = get_dataloader(True)
 val_dataloader = get_dataloader(False)
 
-# 4. test the model
-trainer.validate(model, val_dataloader)
+# 4. fit the model
+trainer.fit(
+    model, 
+    train_dataloader, 
+    val_dataloader,
+    ckpt_path
+    )

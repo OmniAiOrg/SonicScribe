@@ -13,9 +13,12 @@ TODO:
 - [x] Create a tokenizer for single Chinese characters. The tokenizer should be dynamic during training and should only support simplified Chinese characters. For new single characters, start from the mean of their components.
 - [x] Create a tokenizer for notes, duration, and phonemes. For phonemes, copy from existing or similar phonemes.
 - [x] Create combined_dataset and dataloader which with different weights for different datasets
-- [ ] Create a loss function for a mixture of different kinds of datasets.
+- [x] Create a loss function for a mixture of different kinds of datasets.
 - [x] Create a data reader to mix different kinds of datasets.
-- [ ] Create a trainer that can train this modified whisper (SonicScribe).
+- [ ] for different dataset, use different duration token embedding, such that opencpop can be trained better
+- [x] Create a trainer that can train this modified whisper (SonicScribe).
+- [ ] Fix weighted dataset, always read from dataset instead of use dataloader snapshot
+- [ ] Log validation txt to tensorboard
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.

@@ -7,7 +7,7 @@ may contain small errors that could disrupt the training process.
 import dataclasses
 from data_reader.opencpop import OpenCpop
 from utils.general_dataloader import SonicData
-from utils.tokenizers import *
+from utils.pre_tokenizers import *
 
 # TODO: currently not work
 def sonic_data_to_image(data: SonicData):

@@ -9,7 +9,8 @@ from functools import cached_property
 class NaiveTokenizer:
     
     def __init__(self, vocabs:List[str], task:str) -> None:
-        assert task in ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>', '<|pinyin|>', '<|tone|>'], task
+        self.tasks = ['<|initial|>','<|final|>','<|note|>','<|slur|>','<|word|>', '<|note_duration|>', '<|chinese|>', '<|pinyin|>', '<|tone|>']
+        assert task in self.tasks
         self.spetial_code:List[str] = ['<|startoftranscript|>','<|transcribe|>','<|notimestamps|>','<|endoftext|>','<|pad|>','<|pad_label|>','<|unknow|>']
         self.vocabs:List[str] = [*self.spetial_code, task, *vocabs]
         self.converter: Dict[str, int] = {}
@@ -42,6 +43,8 @@ class NaiveTokenizer:
             for c in token_ids:
                 if c == stop_at:
                     break
+                if c in self.sot_task_so_on or c in [self.pad, self.pad_label]:
+                    continue
                 strs += self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐"
                 strs += ' '
             return strs # str
@@ -64,3 +67,10 @@ class DummyTokenizer(NaiveTokenizer):
 
     def decode(self, token_ids: List[int], stop_at=-100, **kwargs) -> str:
         return 'dummy'
+    
+if __name__ == '__main__':
+    slur_tokenizer = NaiveTokenizer(['0', '1'], '<|slur|>')
+    en = [*slur_tokenizer.sot_task_so_on] + slur_tokenizer.encode(['0', '1'])
+    print(en)
+    de = slur_tokenizer.decode(en)
+    print(de)

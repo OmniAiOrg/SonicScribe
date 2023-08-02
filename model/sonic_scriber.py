@@ -6,37 +6,18 @@ This project is a base project for singing generation--Only with bounch of
 data a 
 '''
 
-import os
 import numpy as np
-from utils.general_dataloader import SonicBatch, WeightedDataset, WhisperDataCollatorWithPadding, get_field_names, dataset_keys
+from utils.general_dataloader import SonicBatch, WeightedDataset, WhisperDataCollatorWithPadding, dataset_keys
 from utils.load_checkpoint import get_config, get_whisper_checkpoint
 
 import torch
 from torch import nn
-# import pandas as pd
-# import importlib
-import whisper
-# importlib.reload(whisper)
-import torchaudio
-import torchaudio.transforms as at
-import pytorch_lightning as pl
-from pytorch_lightning import LightningModule
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
 
-from tqdm.notebook import tqdm
-import pickle
 from typing import Dict, List, Optional, Tuple
-from functools import cached_property
-from transformers import (
-    get_linear_schedule_with_warmup,
-    # AdamW
-)
-from whisper.model import Whisper, ModelDimensions, AudioEncoder
+from whisper.model import Whisper, ModelDimensions
 from torch import Tensor
 from torch.nn import LayerNorm
-from whisper.model import ResidualAttentionBlock, TextDecoder, Iterable, ModelDimensions
+from whisper.model import ResidualAttentionBlock, Iterable, ModelDimensions
 from typing import Optional
 
 class CustomTextDecoder(nn.Module):
@@ -85,15 +66,6 @@ class CustomTextDecoder(nn.Module):
             self.head_ln[field_name] = LayerNorm(n_state)
             self.head_block[field_name] = ResidualAttentionBlock(n_state, n_head, cross_attention=True)
             self.head_block[field_name].apply(init_weights)
-        
-        # self.dur_mlp = nn.Sequential(
-        #     nn.Linear(n_state, 30),
-        #     nn.ReLU(),
-        #     nn.Linear(30, 1)
-        # )
-        # # self.slur_mlp = nn.Linear(n_state, 1)
-        # self.dur_mlp.apply(init_weights)
-        # # self.slur_mlp.apply(init_weights)
 
         mask = torch.empty(n_ctx, n_ctx).fill_(-np.inf).triu_(1)
         self.register_buffer("mask", mask, persistent=False)
@@ -152,7 +124,10 @@ class SonicScriber(Whisper):
         dims = ModelDimensions(**checkpoint["dims"])
         return dims
 
-    def __init__(self, model='tiny', collate_fn=WhisperDataCollatorWithPadding()):
+    def __init__(self, model='tiny', collate_fn=None):
+        if collate_fn == None:
+            collate_fn = WhisperDataCollatorWithPadding()
+        self.model_size = model
         dims = self.get_model_dims(model)
         print(dims)
         super().__init__(dims)
@@ -163,12 +138,11 @@ class SonicScriber(Whisper):
         
 if __name__ == '__main__':
     from torch.utils.data import DataLoader
-    print('torch=', torch.__version__, 'lightling=', pl.__version__)
+    print('torch=', torch.__version__)
     config = get_config()
     SEED = int(config['trainer']['seed'])
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DEVICE = "cpu"
-    seed_everything(SEED, workers=True)
     collate_fn=WhisperDataCollatorWithPadding()
     sonic_scriber = SonicScriber('tiny', collate_fn=collate_fn).to(DEVICE)
     

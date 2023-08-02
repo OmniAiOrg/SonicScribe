@@ -13,10 +13,10 @@ import torchaudio
 import torchaudio.transforms as at
 from model.chinese_token_embeddings import ChineseTokenEmbedding
 from model.pinyin_token_embeddings import PinyinTokenEmbedding
-from utils.tokenizers import *
+from utils.pre_tokenizers import *
 from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler, BatchSampler
 import whisper
-from utils.tokenizers import word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
+from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
 
 dataset_keys = [
     'audio', # path to audio
@@ -67,16 +67,20 @@ In this call function, the input may be from multiple different dataset,
 so a list may contain both None and not None values. 
 '''
 class WhisperDataCollatorWithPadding:
-    def __init__(self, model='tiny') -> None:
+    def __init__(self, model='tiny', num_workers=1) -> None:
+        self.all_tokenizers = all_tokenizers
+        
         self.word_tokenizer = word_tokenizer
         self.pinyin_tokenizer = pinyin_tokenizer
         self.note_tokenizer = note_tokenizer
         self.tone_tokenizer = tone_tokenizer
         self.slur_tokenizer = slur_tokenizer
         self.duratoin_tokenizer = duration_tokenizer
+        
         self.const_pad_label = word_tokenizer.pad_label
         self.const_pad = word_tokenizer.pad
         self.unknow = word_tokenizer.unknow
+        self.num_workers = num_workers
         
         all_config = get_config('data_reader/dataset_config.yaml')
         base_config = all_config['BaseReader']
@@ -102,7 +106,8 @@ class WhisperDataCollatorWithPadding:
     def get_keys_mask(self, data: dict) -> list[int]:
         return [1 if dataset_keys[i] in data.keys() else 0 for i in range(len(dataset_keys))]
     
-    def feature_encode(self, data:dict, size_of_input:int, mask:bool, task:str, features: Dict[str, list], aim_task:str, tokenizer:NaiveTokenizer) -> None:
+    def feature_encode(self, data:dict, size_of_input:int, mask:bool, task:str, features: Dict[str, list], aim_task:str) -> None:
+        tokenizer = self.all_tokenizers[task]
         if task == aim_task:
             if task not in features:
                 features[task] = []
@@ -110,7 +115,7 @@ class WhisperDataCollatorWithPadding:
             if mask:
                 words = [*tokenizer.sot_task_so_on] + tokenizer.encode(data[task], default=self.unknow)
             else:
-                words = (len(tokenizer.sot_task_so_on) + size_of_input)*[0]
+                words = (len(tokenizer.sot_task_so_on) + size_of_input)*[tokenizer.pad_label]
             features[task].append(words)
             features[task+'_label'].append(words[1:]+[tokenizer.eot])
         
@@ -121,7 +126,7 @@ class WhisperDataCollatorWithPadding:
             assert len(set(data.keys()) - set(dataset_keys)) == 0, 'not all keys in data legal'
             assert 'pinyin' in data.keys() or 'note' in data.keys()
             # 0. update Chinese characters table, and also transcribe traditional to simplified
-            self.word_embedding.auto_update(data['hanzi'])
+            self.word_embedding.auto_update(data['hanzi'], self.num_workers)
             # 1. get size of dataset
             size_of_input = len(data['pinyin'] or data['note'])
             feature_lengths.append(size_of_input+len(self.pinyin_tokenizer.sot_task_so_on))
@@ -135,13 +140,13 @@ class WhisperDataCollatorWithPadding:
                     mel = self.audio_to_mel(data['audio'])
                     features['mel'].append(mel)
                     continue
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'hanzi', self.word_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'pinyin', self.pinyin_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'note', self.note_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'tone', self.tone_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'slur', self.slur_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'start', self.duratoin_tokenizer)
-                self.feature_encode(data, size_of_input, mask[i], task, features, 'end', self.duratoin_tokenizer)
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'hanzi')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'pinyin')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'note')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'tone')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'slur')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'start')
+                self.feature_encode(data, size_of_input, mask[i], task, features, 'end')
 
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
         features['mask'] = torch.Tensor(features['mask']).to(dtype=torch.int32)
@@ -201,7 +206,7 @@ if __name__ == '__main__':
     weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
     
     loader = DataLoader(weighted_dataset, 
-                            batch_size=10,
+                            batch_size=2,
                             shuffle=True,
                             collate_fn=WhisperDataCollatorWithPadding()
                           )

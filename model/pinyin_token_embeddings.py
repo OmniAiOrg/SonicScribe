@@ -2,7 +2,7 @@ import torch.nn as nn
 from utils.chinese_to_pinyin import get_all_chinese_with_multuple_whisper_token, get_all_chinese_with_single_whisper_token, is_chinese
 from utils.load_checkpoint import get_config, get_whisper_token_embedding
 from utils.naive_tokenizer import NaiveTokenizer
-from utils.tokenizers import pinyin_tokenizer
+from utils.pre_tokenizers import pinyin_tokenizer
 
 
 class PinyinTokenEmbedding(nn.Module):

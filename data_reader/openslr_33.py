@@ -14,7 +14,7 @@ import pickle
 from typing import Dict, List, Optional, Tuple
 import glob
 # from utils.general_dataloader import SonicData
-from utils.tokenizers import *
+from utils.pre_tokenizers import *
 from utils.whisper_duration_auto_tag import WhisperDurationTagger
 from pypinyin import pinyin, lazy_pinyin, Style
 
@@ -108,7 +108,11 @@ class Openslr33(BaseReader):
                 id, content = line.split(' ', 1)
                 data[id] = content
         return data
-                
+    
+    def get_naive_item(self, idx):
+        pair = super().__getitem__(idx)
+        wav_path, text, dur_start, dur_end = pair
+        return wav_path, text, dur_start, dur_end
         
     def __getitem__(self, idx):
         pair = super().__getitem__(idx)

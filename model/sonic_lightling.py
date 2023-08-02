@@ -1,46 +1,21 @@
 from dataclasses import dataclass
-import os
-import numpy as np
 from model.sonic_scriber import SonicScriber
-from utils.general_dataloader import SonicBatch, WeightedDataset, WhisperDataCollatorWithPadding, get_field_names, dataset_keys
-from utils.load_checkpoint import get_config, get_whisper_checkpoint
-
+from utils.general_dataloader import SonicBatch, WeightedDataset, WhisperDataCollatorWithPadding, dataset_keys
+from utils.load_checkpoint import get_config
+from torch.optim.lr_scheduler import ExponentialLR
 import torch
 from torch import nn
-# import pandas as pd
-# import importlib
-import whisper
-# importlib.reload(whisper)
-import torchaudio
-import torchaudio.transforms as at
-import pytorch_lightning as pl
 from pytorch_lightning import LightningModule
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
-
-from tqdm.notebook import tqdm
-import pickle
-from typing import Dict, List, Optional, Tuple
-from functools import cached_property
-from transformers import (
-    get_linear_schedule_with_warmup,
-    # AdamW
-)
-from whisper.model import Whisper, ModelDimensions, AudioEncoder
-from torch import Tensor
-from torch.nn import LayerNorm
-from whisper.model import ResidualAttentionBlock, TextDecoder, Iterable, ModelDimensions
-from typing import Optional
+from pytorch_lightning import Trainer
 from utils.general_dataloader import dataset_keys
-
+import jiwer
 class SonicLightling(LightningModule):
-    def __init__(self, cfg, model="tiny", lang="zh", device='cpu') -> None:
+    def __init__(self, cfg, model:SonicScriber) -> None:
         super().__init__()
-        self.model = SonicScriber(model).to(device=device)
-        # self.metrics_wer = evaluate.load("wer")
-        # self.metrics_cer = evaluate.load("cer")
-        pad_label = self.model.decoder.collate_fn.word_tokenizer.pad_label
+        self.model = model
+        self.collate_fn = self.model.decoder.collate_fn
+        self.all_tokenizers = self.collate_fn.all_tokenizers
+        pad_label = self.collate_fn.word_tokenizer.pad_label
         self.dataset_keys = dataset_keys
         self.batch_size = cfg.batch_size
         
@@ -69,13 +44,26 @@ class SonicLightling(LightningModule):
             return loss_out
         self.ce_loss_compact = ce_loss_compact
         
-        
-        def weighted_ce_loss(predict, label):
-            predict = predict.view(-1, predict.size(-1))
-            label = label.view(-1)
-            return self.slur_loss(predict, label)
-        
-        self.wce_loss = weighted_ce_loss
+        self.wer = jiwer.wer
+        def wer_compact(out_logits:dict, key:str, batch:SonicBatch,  output_cer:dict):
+            logits = out_logits[key]
+            label = batch.__getattribute__(f'{key}_label')
+            # print(key, logits.shape,label.shape)
+            tokenizer = self.all_tokenizers[key]
+            logits = logits.argmax(dim=-1)
+            label = [tokenizer.decode(label[i], compact=True, stop_at=tokenizer.eot) for i in range(self.cfg.batch_size)]
+            pred = [tokenizer.decode(logits[i], compact=True, stop_at=tokenizer.pad) for i in range(self.cfg.batch_size)]
+            compact_label = [label[i] for i in range(len(label)) if len(label[i])>0]
+            compact_pred = [pred[i] for i in range(len(label)) if len(label[i])>0]
+            if len(compact_label) == 0:
+                wer_score = 0.0
+            else:
+                # print(key, '|', compact_pred[0], '|', compact_label[0])
+                wer_score = self.wer(compact_label, compact_pred)
+            output_cer[key] = wer_score
+            output_cer['total'] += wer_score
+            return wer_score
+        self.wer_compact = wer_compact
 
         self.cfg = cfg
         self.learning_rate = self.cfg.learning_rate
@@ -85,40 +73,68 @@ class SonicLightling(LightningModule):
     def forward(self, x:SonicBatch):
         return self.model.forward(x)
     
-    def calculate_loss(self, batch:SonicBatch, batch_id:int):
-        out_logits = self.forward(batch)
+    def calculate_loss(self, out_logits, batch:SonicBatch, batch_id:int):
         out_loss = {'loss':0}
-        word_loss = self.ce_loss_compact(out_logits, 'hanzi', batch, out_loss)
-        pinyin_loss = self.ce_loss_compact(out_logits, 'pinyin', batch, out_loss)
-        note_loss = self.ce_loss_compact(out_logits, 'note', batch, out_loss)
-        tone_loss = self.ce_loss_compact(out_logits, 'tone', batch, out_loss)
-        slur_loss = self.ce_loss_compact(out_logits, 'slur', batch, out_loss)
-        start_loss = self.ce_loss_compact(out_logits, 'start', batch, out_loss)
-        end_loss = self.ce_loss_compact(out_logits, 'end', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'hanzi', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'pinyin', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'note', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'tone', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'slur', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'start', batch, out_loss)
+        self.ce_loss_compact(out_logits, 'end', batch, out_loss)
         return out_loss
+    
+    def calculate_char_error_rate(self, out_logits, batch:SonicBatch, batch_id:int):
+        out_wer = {'total':0}
+        self.wer_compact(out_logits, 'hanzi', batch, out_wer)
+        self.wer_compact(out_logits, 'pinyin', batch, out_wer)
+        self.wer_compact(out_logits, 'note', batch, out_wer)
+        self.wer_compact(out_logits, 'tone', batch, out_wer)
+        self.wer_compact(out_logits, 'slur', batch, out_wer)
+        # self.cer_compact(out_logits, 'start', batch, out_cer)
+        # self.cer_compact(out_logits, 'end', batch, out_cer)
+        return out_wer
 
     def training_step(self, batch:SonicBatch, batch_id:int):
-        out_loss = self.calculate_loss(batch, batch_id)
+        out_logits = self.model(batch)
+        out_loss = self.calculate_loss(out_logits, batch, batch_id)
         self.log("train/loss", out_loss['loss'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         self.log("train/word_loss", out_loss['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log("train/pinyin_loss", out_loss['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         self.log("train/note_loss", out_loss['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         self.log("train/tone_loss", out_loss['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         self.log("train/slur_loss", out_loss['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log("train/start_loss", out_loss['start'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log("train/end_loss", out_loss['end'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         return out_loss
     
     def validation_step(self, batch:SonicBatch, batch_id:int):
         with torch.no_grad():
-            out_loss = self.calculate_loss(batch, batch_id)
-            self.log("val/loss", out_loss['loss'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val/word_loss", out_loss['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val/note_loss", out_loss['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val/tone_loss", out_loss['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val/slur_loss", out_loss['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            return out_loss
+            out_logits = self.model(batch)
+            out_loss = self.calculate_loss(out_logits, batch, batch_id)
+            out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
+            self.log("val_loss", out_loss['loss'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_word_loss", out_loss['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_pinyin_loss", out_loss['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_note_loss", out_loss['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_tone_loss", out_loss['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_slur_loss", out_loss['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_start_loss", out_loss['start'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_end_loss", out_loss['end'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            
+            
+            self.log("val_total_wer", out_wer['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_word_wer", out_wer['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_pinyin_wer", out_wer['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_note_wer", out_wer['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_tone_wer", out_wer['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log("val_slur_wer", out_wer['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            return out_loss, out_wer
         
     def predict_step(self, batch, batch_id):
         with torch.no_grad():
-            out_loss = self.calculate_loss(batch, batch_id)
+            out_logits = self.model(batch)
+            out_loss = self.calculate_loss(out_logits, batch, batch_id)
             return out_loss
 
     def configure_optimizers(self):
@@ -144,20 +160,16 @@ class SonicLightling(LightningModule):
                           eps=self.cfg.adam_epsilon)
         self.optimizer = optimizer
 
-        self.scheduler = get_linear_schedule_with_warmup(
-            optimizer, num_warmup_steps=self.cfg.warmup_steps, 
-            num_training_steps=10
-        )
+        # self.scheduler = get_linear_schedule_with_warmup(
+        #     optimizer, num_warmup_steps=self.cfg.warmup_steps, 
+        #     num_training_steps=10
+        # )
+        
+        torch_lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.98)
 
-        return [optimizer], [{"scheduler": self.scheduler, "interval": "step", "frequency": 1}]
-    
-    # def setup(self, stage=None):
-        # if stage == 'fit' or stage is None:
-        #     self.t_total = (
-        #         (len(self.__train_dataset) // (self.cfg.batch_size))
-        #         // self.cfg.gradient_accumulation_steps
-        #         * float(self.cfg.num_train_epochs)
-        #     )
+        self.scheduler = torch_lr_scheduler
+
+        return [optimizer], [{"scheduler": self.scheduler, "interval": "epoch", "frequency": 1}]
     
 if __name__ == '__main__':
     all_config = get_config('data_reader/dataset_config.yaml')
@@ -167,7 +179,6 @@ if __name__ == '__main__':
     # DEVICE = "cpu"
     @dataclass
     class Config:
-        # learning_rate = 1.1306633979496386e-06
         learning_rate = 0.01
         weight_decay = 0.01
         adam_epsilon = 1e-7
@@ -181,17 +192,18 @@ if __name__ == '__main__':
         
     cfg = Config()
     trainer = Trainer(accelerator=DEVICE)
-    model = SonicLightling(cfg).to(DEVICE)
+    collect_fn = WhisperDataCollatorWithPadding()
+    model = SonicScriber('tiny', collate_fn=collect_fn)
+    model = SonicLightling(cfg, model).to(DEVICE)
     
     from data_reader.opencpop import OpenCpop
     from data_reader.openslr_33 import Openslr33
     from torch.utils.data import DataLoader
-    collect_fn = WhisperDataCollatorWithPadding()
+
     dataset_a = OpenCpop(train=True)
     dataset_b = Openslr33(train=True)
     print(len(dataset_a), len(dataset_b), flush=True)
     weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
-    
     train_dataloader = DataLoader(weighted_dataset, 
                             batch_size=cfg.batch_size,
                             shuffle=True,

@@ -46,7 +46,7 @@ class ChineseTokenEmbedding(nn.Module):
             except:
                 print(id, hanzi)
             
-    def update_table(self, new_hanzi):
+    def update_table(self, new_hanzi, num_workers=0):
         '''
         1. when an unseen hanzi shows up, save it to the tokenizer table, and self.all_hanzi
         2. calculate the embedding of that hanzi from whisper official token embedding,
@@ -56,9 +56,10 @@ class ChineseTokenEmbedding(nn.Module):
         tokens = self.whisper_official_word_tokenizer.encode(new_hanzi)[0]
         embeddings = self.whisper_official_token_embedding[tokens]
         mean_embedding = embeddings.mean(dim=0)
-        self.chinese_token_embedding.weight.data[self.tokenizer.encode(new_hanzi)[0]] = mean_embedding
+        if num_workers == 0:
+            self.chinese_token_embedding.weight.data[self.tokenizer.encode(new_hanzi)[0]] = mean_embedding
     
-    def auto_update(self, text:str):
+    def auto_update(self, text:str, num_workers=0):
         '''
         1. check whether all text in tokenizer, if so, return,
         2. update_table(new_hanzi)
@@ -68,7 +69,7 @@ class ChineseTokenEmbedding(nn.Module):
                     and is_chinese(hanzi)\
                     and not self.tokenizer.contains(traditional_to_simplified(hanzi)):
                 hanzi = traditional_to_simplified(hanzi)
-                self.update_table(hanzi)
+                self.update_table(hanzi, num_workers)
                 
     def __len__(self):
         return len(self.tokenizer)
