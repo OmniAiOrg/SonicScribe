@@ -20,11 +20,12 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "001"
+train_id = "002"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "SonicScribe"
+resume_checkpoint = "checkpoint-010-22.41.ckpt"
 
 @dataclass
 class Config:
@@ -41,6 +42,7 @@ class Config:
     sample_rate = SAMPLE_RATE
     limit_val_batches = 0.25
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
+    log_every_n_steps = 1
     
 # 2. Trainer preparation
 
@@ -55,13 +57,14 @@ tflogger = TensorBoardLogger(
 
 checkpoint_callback = ModelCheckpoint(
     dirpath=f"{check_output_dir}/checkpoint/{train_id}",
-    filename="checkpoint-{epoch:03d}-{val_loss:.2f}",
+    filename="checkpoint-{epoch:03d}-{val/loss:.2f}",
     save_top_k=5,
-    monitor = 'val_loss',
+    monitor = 'val/loss',
+    auto_insert_metric_name=False,
     save_last=True,
 )
 
-latest_ckpt = Path(f"{check_output_dir}/checkpoint/my.ck")
+latest_ckpt = Path(f"{check_output_dir}/checkpoint/{train_id}/{resume_checkpoint}")
 if latest_ckpt.is_file():
     ckpt_path = latest_ckpt
 else:
@@ -79,7 +82,7 @@ trainer = Trainer(
     accumulate_grad_batches=cfg.gradient_accumulation_steps,
     limit_val_batches=cfg.limit_val_batches,
     overfit_batches=cfg.overfit_batches,
-    log_every_n_steps = cfg.gradient_accumulation_steps * cfg.batch_size
+    log_every_n_steps = cfg.gradient_accumulation_steps * cfg.batch_size * cfg.log_every_n_steps,
     )
 collect_fn = WhisperDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker)
 model = SonicScriber(model_size, collate_fn=collect_fn)
@@ -92,13 +95,15 @@ def get_dataloader(train=True) -> DataLoader:
     dataset_b = Openslr33(train)
     print('Train' if train else 'Val', len(dataset_a), len(dataset_b), flush=True)
     weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
+    print('weighted_dataset', len(weighted_dataset))
     dataloader = DataLoader(weighted_dataset, 
                             batch_size=cfg.batch_size,
                             shuffle=True if train and cfg.overfit_batches==0 else False,
                             collate_fn=collect_fn,
                             num_workers = cfg.num_worker,
                             pin_memory=True,
-                            pin_memory_device = DEVICE
+                            pin_memory_device = DEVICE,
+                            persistent_workers=True
                             )
     return dataloader
     
@@ -110,5 +115,5 @@ trainer.fit(
     model, 
     train_dataloader, 
     val_dataloader,
-    ckpt_path
+    ckpt_path = ckpt_path
     )

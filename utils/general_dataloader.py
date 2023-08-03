@@ -4,6 +4,7 @@ work in this dataloader. This means mask could also be generatted in here.
 '''
 
 from dataclasses import dataclass, fields
+import random
 import torch
 from torch import Tensor
 import numpy as np
@@ -178,24 +179,30 @@ class WeightedDataset(torch.utils.data.Dataset):
         self.lengths = [len(ds) for ds in self.datasets]
         total_weight = sum(self.weights)
         self.weights = [w / total_weight for w in self.weights]
-
         self.cum_weights = torch.tensor(self.weights).cumsum(dim=0).tolist()
 
     def __getitem__(self, index):
-        dataset_idx = self._get_random_dataset_index()
+        dataset_idx, inside_data_idx = self._get_random_dataset_index(index)
         selected_dataset = self.datasets[dataset_idx]
-        return selected_dataset[index % self.lengths[dataset_idx]]
+        return selected_dataset[inside_data_idx]
 
-    def _get_random_dataset_index(self):
+    def _get_random_dataset_index(self, index):
         rand_val = torch.rand(1).item()
+        dataset_index = len(self.cum_weights) - 1
         for i, cum_weight in enumerate(self.cum_weights):
             if rand_val < cum_weight:
-                return i
-        return len(self.cum_weights) - 1
+                dataset_index = i
+                break
+        length_i = self.lengths[i]
+        inside_data_idx = index*length_i//len(self)
+        if len(self) > length_i:
+            dup = length_i//len(self)
+            inside_data_idx += random.randint(0, dup)
+            inside_data_idx = inside_data_idx % length_i
+        return dataset_index, inside_data_idx
 
     def __len__(self):
-        return max(self.lengths)
-    
+        return min(self.lengths) * len(self.lengths)
     
 if __name__ == '__main__':
     from data_reader.opencpop import OpenCpop
@@ -204,13 +211,16 @@ if __name__ == '__main__':
     dataset_b = Openslr33(train=False)
     print(len(dataset_a), len(dataset_b), flush=True)
     weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
+    print(len(weighted_dataset))
     
     loader = DataLoader(weighted_dataset, 
                             batch_size=2,
                             shuffle=True,
-                            collate_fn=WhisperDataCollatorWithPadding()
+                            collate_fn=WhisperDataCollatorWithPadding(),
+                            num_workers=2,
+                            persistent_workers=True
                           )
     for b in loader:
-        print(b)
+        # print(b)
         print(sonic_batch_to_shape(b))
         break

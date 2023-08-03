@@ -17,8 +17,8 @@ TODO:
 - [x] Create a data reader to mix different kinds of datasets.
 - [ ] for different dataset, use different duration token embedding, such that opencpop can be trained better
 - [x] Create a trainer that can train this modified whisper (SonicScribe).
-- [ ] Fix weighted dataset, always read from dataset instead of use dataloader snapshot
-- [ ] Log validation txt to tensorboard
+- [x] Fix weighted dataset, always read from dataset instead of use dataloader snapshot
+- [x] Log validation txt to tensorboard
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.

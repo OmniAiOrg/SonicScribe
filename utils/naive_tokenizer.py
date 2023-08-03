@@ -43,7 +43,7 @@ class NaiveTokenizer:
             for c in token_ids:
                 if c == stop_at:
                     break
-                if c in self.sot_task_so_on or c in [self.pad, self.pad_label]:
+                if c in self.sot_task_so_on or c in [self.pad, self.pad_label, self.eot]:
                     continue
                 strs += self.vocabs[c] if c is not None and c < len(self.vocabs) else "☐"
                 strs += ' '

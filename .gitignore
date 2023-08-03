@@ -5,3 +5,4 @@ assets/sample_audio/
 assets/simplified_chinese.txt
 lightning_logs/*
 logs/*
+artifacts/checkpoint/*

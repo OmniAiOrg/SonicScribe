@@ -8,6 +8,7 @@ from torch import nn
 from pytorch_lightning import LightningModule
 from pytorch_lightning import Trainer
 from utils.general_dataloader import dataset_keys
+from pytorch_lightning.loggers import TensorBoardLogger
 import jiwer
 class SonicLightling(LightningModule):
     def __init__(self, cfg, model:SonicScriber) -> None:
@@ -40,7 +41,7 @@ class SonicLightling(LightningModule):
             b = batch.__getattribute__(f'{key}_label')*mask
             loss_out = loss(a, b)
             output_loss[key] = loss_out
-            output_loss['loss'] += loss_out
+            output_loss['total'] += loss_out
             return loss_out
         self.ce_loss_compact = ce_loss_compact
         
@@ -58,7 +59,12 @@ class SonicLightling(LightningModule):
             if len(compact_label) == 0:
                 wer_score = 0.0
             else:
-                # print(key, '|', compact_pred[0], '|', compact_label[0])
+                logger:TensorBoardLogger = self.logger
+                log_str = ''
+                for i in range(len(compact_pred)):
+                    log_str += f'pred:  {compact_pred[i]}\n'
+                    log_str += f'label: {compact_label[i]}\n'
+                logger.experiment.add_text(f'wer/{key}', log_str, self.global_step)
                 wer_score = self.wer(compact_label, compact_pred)
             output_cer[key] = wer_score
             output_cer['total'] += wer_score
@@ -74,61 +80,43 @@ class SonicLightling(LightningModule):
         return self.model.forward(x)
     
     def calculate_loss(self, out_logits, batch:SonicBatch, batch_id:int):
-        out_loss = {'loss':0}
-        self.ce_loss_compact(out_logits, 'hanzi', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'pinyin', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'note', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'tone', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'slur', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'start', batch, out_loss)
-        self.ce_loss_compact(out_logits, 'end', batch, out_loss)
+        out_loss = {'total':0}
+        calculate = lambda key: self.ce_loss_compact(out_logits, key, batch, out_loss)
+        for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
+            calculate(key)
         return out_loss
     
     def calculate_char_error_rate(self, out_logits, batch:SonicBatch, batch_id:int):
         out_wer = {'total':0}
-        self.wer_compact(out_logits, 'hanzi', batch, out_wer)
-        self.wer_compact(out_logits, 'pinyin', batch, out_wer)
-        self.wer_compact(out_logits, 'note', batch, out_wer)
-        self.wer_compact(out_logits, 'tone', batch, out_wer)
-        self.wer_compact(out_logits, 'slur', batch, out_wer)
-        # self.cer_compact(out_logits, 'start', batch, out_cer)
-        # self.cer_compact(out_logits, 'end', batch, out_cer)
+        calculate = lambda key: self.wer_compact(out_logits, key, batch, out_wer)
+        for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur']:
+            calculate(key)
         return out_wer
 
     def training_step(self, batch:SonicBatch, batch_id:int):
         out_logits = self.model(batch)
         out_loss = self.calculate_loss(out_logits, batch, batch_id)
-        self.log("train/loss", out_loss['loss'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/word_loss", out_loss['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/pinyin_loss", out_loss['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/note_loss", out_loss['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/tone_loss", out_loss['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/slur_loss", out_loss['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/start_loss", out_loss['start'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log("train/end_loss", out_loss['end'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'train/loss', out_loss['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        save_loss = lambda key : self.log(f'train/{key}_loss', out_loss[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
+            save_loss(key)
+        out_loss['loss'] = out_loss['total']
         return out_loss
     
     def validation_step(self, batch:SonicBatch, batch_id:int):
         with torch.no_grad():
             out_logits = self.model(batch)
             out_loss = self.calculate_loss(out_logits, batch, batch_id)
+            self.log(f'val/loss', out_loss['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            save_loss = lambda key: self.log(f'val/{key}_loss', out_loss[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
+                save_loss(key)
+            out_loss['loss'] = out_loss['total']
+
             out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
-            self.log("val_loss", out_loss['loss'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_word_loss", out_loss['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_pinyin_loss", out_loss['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_note_loss", out_loss['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_tone_loss", out_loss['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_slur_loss", out_loss['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_start_loss", out_loss['start'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_end_loss", out_loss['end'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            
-            
-            self.log("val_total_wer", out_wer['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_word_wer", out_wer['hanzi'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_pinyin_wer", out_wer['pinyin'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_note_wer", out_wer['note'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_tone_wer", out_wer['tone'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            self.log("val_slur_wer", out_wer['slur'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            save_wer = lambda key: self.log(f"wer/{key}", out_wer[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+            for key in ['total', 'hanzi', 'pinyin', 'note', 'tone', 'slur']:
+                save_wer(key)
             return out_loss, out_wer
         
     def predict_step(self, batch, batch_id):
