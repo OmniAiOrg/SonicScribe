@@ -25,7 +25,17 @@ Openslr33:
   license: Apache License v.2.0
   website: https://www.openslr.org/33
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/33-Aishell/data_aishell/
-  model_size: tiny # one of [tiny, base, small, medium, large-v2], with size [73M, 139M, 462M, 1.5G, 2.9G]
+  model_size: tiny # for duration prediction. one of [tiny, base, small, medium, large-v2], with size [73M, 139M, 462M, 1.5G, 2.9G]
+
+Openslr47:
+  name: Primewords Chinese Corpus Set 1
+  identifier: SLR47
+  summary: Chinese Mandarin corpus released by Shanghai Primewords Co. Ltd. (www.primewords.cn), containing 100 hours of speech data.
+  category: Speech
+  license: CC BY-NC-ND 4.0
+  website: https://www.openslr.org/47/
+  path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/47-SLR47-primewords-2018/primewords_md_2018_set1/
+  model_size: tiny
 
 OpenCpop:
   name: OpenCpop

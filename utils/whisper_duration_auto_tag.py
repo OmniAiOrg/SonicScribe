@@ -33,7 +33,7 @@ class WhisperDurationTagger:
         download_root = config['whisper']['checkpoint']
         device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
         print(f"Start loading whisper model ({model_name}), it may take a while")
-        self.model = whisper.load_model(model_name, download_root=download_root).to(device)
+        self.model = whisper.load_model(model_name, download_root=download_root, device=device)
         self.language = "zh"
         self.tokenizer = get_tokenizer(self.model.is_multilingual)
         self.get_chinese_exchange_pair()

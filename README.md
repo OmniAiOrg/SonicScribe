@@ -19,6 +19,8 @@ TODO:
 - [x] Create a trainer that can train this modified whisper (SonicScribe).
 - [x] Fix weighted dataset, always read from dataset instead of use dataloader snapshot
 - [x] Log validation txt to tensorboard
+- [ ] predict hanzi -> partial with AP SP -> fintune in opencpop hanzi only -> add note -> add slur -> try calculate duration
+- [ ] new training logic: finetune official whisper -> add a head to predict single token hanzi -> add note, slur ,... 
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.

@@ -62,8 +62,8 @@ class SonicLightling(LightningModule):
                 logger:TensorBoardLogger = self.logger
                 log_str = ''
                 for i in range(len(compact_pred)):
-                    log_str += f'pred:  {compact_pred[i]}\n'
-                    log_str += f'label: {compact_label[i]}\n'
+                    log_str += f'**pred**:  {compact_pred[i]}  \n'
+                    log_str += f'**label**: {compact_label[i]}  \n'
                 logger.experiment.add_text(f'wer/{key}', log_str, self.global_step)
                 wer_score = self.wer(compact_label, compact_pred)
             output_cer[key] = wer_score
@@ -79,10 +79,10 @@ class SonicLightling(LightningModule):
     def forward(self, x:SonicBatch):
         return self.model.forward(x)
     
-    def calculate_loss(self, out_logits, batch:SonicBatch, batch_id:int):
+    def calculate_loss(self, out_logits, batch:SonicBatch, batch_id:int, keys):
         out_loss = {'total':0}
         calculate = lambda key: self.ce_loss_compact(out_logits, key, batch, out_loss)
-        for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
+        for key in keys:
             calculate(key)
         return out_loss
     
@@ -95,35 +95,35 @@ class SonicLightling(LightningModule):
 
     def training_step(self, batch:SonicBatch, batch_id:int):
         out_logits = self.model(batch)
-        out_loss = self.calculate_loss(out_logits, batch, batch_id)
+        keys = ['hanzi', 'pinyin', 'tone']#, 'note', 'slur', 'start', 'end']
+        out_loss = self.calculate_loss(out_logits, batch, batch_id, keys)
         self.log(f'train/loss', out_loss['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         save_loss = lambda key : self.log(f'train/{key}_loss', out_loss[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
+        for key in keys:
             save_loss(key)
         out_loss['loss'] = out_loss['total']
         return out_loss
     
     def validation_step(self, batch:SonicBatch, batch_id:int):
-        with torch.no_grad():
-            out_logits = self.model(batch)
-            out_loss = self.calculate_loss(out_logits, batch, batch_id)
-            self.log(f'val/loss', out_loss['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            save_loss = lambda key: self.log(f'val/{key}_loss', out_loss[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            for key in ['hanzi', 'pinyin', 'note', 'tone', 'slur', 'start', 'end']:
-                save_loss(key)
-            out_loss['loss'] = out_loss['total']
+        out_logits = self.model(batch)
+        keys = ['hanzi', 'pinyin', 'tone']#, 'note', 'slur', 'start', 'end']
+        out_loss = self.calculate_loss(out_logits, batch, batch_id, keys)
+        self.log(f'val/loss', out_loss['total'], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        save_loss = lambda key: self.log(f'val/{key}_loss', out_loss[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        for key in keys:
+            save_loss(key)
+        out_loss['loss'] = out_loss['total']
 
-            out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
-            save_wer = lambda key: self.log(f"wer/{key}", out_wer[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-            for key in ['total', 'hanzi', 'pinyin', 'note', 'tone', 'slur']:
-                save_wer(key)
-            return out_loss, out_wer
+        out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
+        save_wer = lambda key: self.log(f"wer/{key}", out_wer[key], on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        for key in ['total', 'hanzi', 'pinyin', 'note', 'tone', 'slur']:
+            save_wer(key)
+        return out_loss, out_wer
         
     def predict_step(self, batch, batch_id):
-        with torch.no_grad():
-            out_logits = self.model(batch)
-            out_loss = self.calculate_loss(out_logits, batch, batch_id)
-            return out_loss
+        out_logits = self.model(batch)
+        out_loss = self.calculate_loss(out_logits, batch, batch_id)
+        return out_loss
 
     def configure_optimizers(self):
         no_decay = ["bias", "LayerNorm.weight"]
