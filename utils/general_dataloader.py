@@ -16,6 +16,7 @@ from model.chinese_token_embeddings import ChineseTokenEmbedding
 from model.pinyin_token_embeddings import PinyinTokenEmbedding
 from utils.pre_tokenizers import *
 from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler, BatchSampler
+from pytorch_lightning.utilities.combined_loader import CombinedLoader
 import whisper
 from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
 
@@ -177,9 +178,11 @@ class WeightedDataset(torch.utils.data.Dataset):
         self.datasets = [ds for ds, _ in datasets_with_weights]
         self.weights = [weight for _, weight in datasets_with_weights]
         self.lengths = [len(ds) for ds in self.datasets]
-        total_weight = sum(self.weights)
-        self.weights = [w / total_weight for w in self.weights]
-        self.cum_weights = torch.tensor(self.weights).cumsum(dim=0).tolist()
+        self.cum_lengths = torch.tensor(self.lengths).cumsum(dim=0).tolist()
+        # print(self.lengths, self.cum_lengths)
+        # total_weight = sum(self.weights)
+        # self.weights = [w / total_weight for w in self.weights]
+        # self.cum_weights = torch.tensor(self.weights).cumsum(dim=0).tolist()
 
     def __getitem__(self, index):
         dataset_idx, inside_data_idx = self._get_random_dataset_index(index)
@@ -187,38 +190,34 @@ class WeightedDataset(torch.utils.data.Dataset):
         return selected_dataset[inside_data_idx]
 
     def _get_random_dataset_index(self, index):
-        rand_val = torch.rand(1).item()
-        dataset_index = len(self.cum_weights) - 1
-        for i, cum_weight in enumerate(self.cum_weights):
-            if rand_val < cum_weight:
+        for i, cum_lengths in enumerate(self.cum_lengths):
+            if index < cum_lengths:
                 dataset_index = i
-                break
-        length_i = self.lengths[i]
-        inside_data_idx = index*length_i//len(self)
-        if len(self) > length_i:
-            dup = length_i//len(self)
-            inside_data_idx += random.randint(0, dup)
-            inside_data_idx = inside_data_idx % length_i
-        return dataset_index, inside_data_idx
-
+                inside_data_idx = index - (cum_lengths - self.lengths[i])
+                return dataset_index, inside_data_idx
+        
     def __len__(self):
-        return min(self.lengths) * len(self.lengths)
+        return sum(self.lengths)
     
 if __name__ == '__main__':
     from data_reader.opencpop import OpenCpop
     from data_reader.openslr_33 import Openslr33
+    from data_reader.openslr_47 import Openslr47
     dataset_a = OpenCpop(train=False)
     dataset_b = Openslr33(train=False)
-    print(len(dataset_a), len(dataset_b), flush=True)
-    weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
+    dataset_c = Openslr47(train=False)
+    print(len(dataset_a), len(dataset_b), len(dataset_c), flush=True)
+    weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3), (dataset_c, 3)])
     print(len(weighted_dataset))
+    # exit()
     
     loader = DataLoader(weighted_dataset, 
                             batch_size=2,
                             shuffle=True,
                             collate_fn=WhisperDataCollatorWithPadding(),
                             num_workers=2,
-                            persistent_workers=True
+                            persistent_workers=True,
+                            drop_last=True,
                           )
     for b in loader:
         # print(b)
