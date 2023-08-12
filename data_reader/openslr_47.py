@@ -38,7 +38,7 @@ class Openslr47(BaseReader):
         text_data_list = self.parse_txt(self.text_path)
         text_data_train, text_data_test = text_data_list[:50000], text_data_list[50000:]
         text_data = text_data_train if train else text_data_test
-        return self.get_audio_file_list(text_data, self.audio_path, self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'{dataset_txt}_audio_openslr33')
+        return self.get_audio_file_list(text_data, self.audio_path, self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'{dataset_txt}_audio_openslr47')
         
     def audio_path_to_wav_list(self, dir_path):
         sub_dirs = [os.path.join(dir_path, d) for d in os.listdir(dir_path) if os.path.isdir(os.path.join(dir_path, d))]

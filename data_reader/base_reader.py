@@ -1,17 +1,8 @@
 # base reader
 import torch
-import yaml
-from pathlib import Path
-import os
-import numpy as np
-from torch import nn
-import whisper
 import torchaudio
 import torchaudio.transforms as at
-from tqdm import tqdm
-import pickle
-from typing import Dict, List, Optional, Tuple
-from whisper.tokenizer import get_tokenizer, Tokenizer
+from utils.chinese_to_pinyin import is_chinese
 from utils.load_checkpoint import get_config
 
 class BaseReader(torch.utils.data.Dataset):
@@ -45,9 +36,16 @@ class BaseReader(torch.utils.data.Dataset):
     def print_config(self):
         print('=== Dataset Info ===')
         keys = ['name', 'summary', 'category', 'license', 'website']
-        max_key_len = max([len(key) for key in keys])
         for k in keys:
             print(f'{k.upper():<10}: {self.config[k]}')
+            
+    def filter_chinese(self, input:str) -> str:
+        output=''
+        for i in input:
+            if is_chinese(i):
+                output += i
+        assert len(output) > 0, input
+        return output
         
     
     def __len__(self):

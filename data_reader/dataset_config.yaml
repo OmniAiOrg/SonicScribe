@@ -16,6 +16,7 @@ BaseReader:
   MAX_SECS: 30 # allow 30s = AUDIO_MAX_LENGTH/SAMPLE_RATE
   VERIFY_AUDIO: true # If true, very slow, but only need to generate pickle once. If you trust the dataset is 100% correct, set to false
   DISABLE_TQDM: false # If true, not show finish rate bar in terminal
+  model_size: tiny # for duration prediction. one of [tiny, base, small, medium, large-v2], with size [73M, 139M, 462M, 1.5G, 2.9G]
 
 Openslr33:
   name: AIShell-1
@@ -25,7 +26,6 @@ Openslr33:
   license: Apache License v.2.0
   website: https://www.openslr.org/33
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/33-Aishell/data_aishell/
-  model_size: tiny # for duration prediction. one of [tiny, base, small, medium, large-v2], with size [73M, 139M, 462M, 1.5G, 2.9G]
 
 Openslr47:
   name: Primewords Chinese Corpus Set 1
@@ -35,7 +35,16 @@ Openslr47:
   license: CC BY-NC-ND 4.0
   website: https://www.openslr.org/47/
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/47-SLR47-primewords-2018/primewords_md_2018_set1/
-  model_size: tiny
+
+Openslr68:
+  name: MAGICDATA Mandarin Chinese Read Speech Corpus
+  identifier: SLR68
+  summary: The corpus by Magic Data Technology Co., Ltd. , containing 755 hours of scripted read speech data from 1080 native speakers of the Mandarin Chinese spoken in mainland China. The sentence transcription accuracy is higher than 98%.
+  category: Speech
+  license: CC BY-NC-ND 4.0
+  website: https://openslr.org/68/
+  path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/68-SLR68-MagicData/
+  DISABLE_TQDM: true
 
 OpenCpop:
   name: OpenCpop
