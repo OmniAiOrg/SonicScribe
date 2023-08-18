@@ -3,8 +3,15 @@ Unlike tiktoken, this naive tokenizer is a 1 to 1 tokenizer, which will not
 map to multiple tokens.
 '''
 
+import base64
+import os
 from typing import Dict, List, Optional, Tuple, Union
-from functools import cached_property
+from functools import cached_property, lru_cache
+import tiktoken
+
+from whisper.tokenizer import Tokenizer, LANGUAGES, TO_LANGUAGE_CODE
+from utils.load_checkpoint import get_config
+from utils.note import notes
 
 class NaiveTokenizer:
     
@@ -68,9 +75,107 @@ class DummyTokenizer(NaiveTokenizer):
     def decode(self, token_ids: List[int], stop_at=-100, **kwargs) -> str:
         return 'dummy'
     
+class WhisperTokenizer(Tokenizer):
+    def __post_init__(self):
+        for special in self.encoding.special_tokens_set:
+            special_token = self.encoding.encode_single_token(special)
+            self.special_tokens[special] = special_token
+
+        sot: int = self.special_tokens["<|startoftranscript|>"]
+        translate: int = self.special_tokens["<|translate|>"]
+        transcribe: int = self.special_tokens["<|transcribe|>"]
+
+        langs = tuple(LANGUAGES.keys())
+        sot_sequence = [sot]
+        if self.language is not None:
+            sot_sequence.append(sot + 1 + langs.index(self.language))
+        if self.task is not None:
+            task_token: int = transcribe if self.task == "transcribe" else translate
+            sot_sequence.append(task_token)
+
+        self.sot_sequence = tuple(sot_sequence)
+        
+@lru_cache(maxsize=None)
+def get_encoding(name: str = "multilingual"):
+    vocab_path = os.path.join(os.path.dirname(__file__), "../assets", f"{name}.tiktoken")
+    ranks = {
+        base64.b64decode(token): int(rank)
+        for token, rank in (line.split() for line in open(vocab_path) if line)
+    }
+    n_vocab = len(ranks)
+    special_tokens = {}
+    max_text_size = get_config('data_reader/dataset_config.yaml')['BaseReader']['TEXT_MAX_LENGTH']
+    specials = [
+        "<|endoftext|>",
+        "<|startoftranscript|>",
+        *[f"<|{lang}|>" for lang in LANGUAGES.keys()],
+        "<|translate|>",
+        "<|transcribe|>",
+        "<|startoflm|>",
+        "<|startofprev|>",
+        "<|nospeech|>",
+        "<|notimestamps|>",
+        "<|AP|>",
+        "<|SP|>",
+        "<|SL|>",
+        *[f'<|{i}|>' for i in notes],
+        *[f'<|{i}|>' for i in range(max_text_size)],
+        *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
+    ]
+
+    for token in specials:
+        special_tokens[token] = n_vocab
+        n_vocab += 1
+
+    return tiktoken.Encoding(
+        name=os.path.basename(vocab_path),
+        explicit_n_vocab=n_vocab,
+        pat_str=r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""",
+        mergeable_ranks=ranks,
+        special_tokens=special_tokens,
+    )
+
+
+@lru_cache(maxsize=None)
+def get_tokenizer(
+    multilingual: bool,
+    *,
+    language: Optional[str] = None,
+    task: Optional[str] = None,  # Literal["transcribe", "translate", None]
+) -> Tokenizer:
+    if language is not None:
+        language = language.lower()
+        if language not in LANGUAGES:
+            if language in TO_LANGUAGE_CODE:
+                language = TO_LANGUAGE_CODE[language]
+            else:
+                raise ValueError(f"Unsupported language: {language}")
+
+    if multilingual:
+        encoding_name = "multilingual_fixed"
+        language = language or "en"
+        task = task or "transcribe"
+    else:
+        encoding_name = "gpt2"
+        language = None
+        task = None
+
+    encoding = get_encoding(name=encoding_name)
+
+    return Tokenizer(encoding=encoding, language=language, task=task)
+
+    
 if __name__ == '__main__':
     slur_tokenizer = NaiveTokenizer(['0', '1'], '<|slur|>')
     en = [*slur_tokenizer.sot_task_so_on] + slur_tokenizer.encode(['0', '1'])
     print(en)
     de = slur_tokenizer.decode(en)
     print(de)
+    print('-------')
+    
+    whisper_tokenizer = get_tokenizer(multilingual=True, language='zh', task='transcibe')
+    en = whisper_tokenizer.encode('<|1|>世<|A3|><|2|>界<|C#5/Db5|>', allowed_special="all")
+    print(en)
+    de = whisper_tokenizer.decode(en)
+    print(de)
+    print('-------')

@@ -32,9 +32,20 @@ TODO:
     - cuation! btw, remove all multi chinese with single token in tokenizer!
     - what about use this in english song? it may works! 
     - example: <|singing|> <|en|> <|male|> <|1|> fan <|B3|> <|2|> tas <|A4|> <|3|> tic <|A5|>  <|eot|>
+    - example: <|singing|> <|zh|> <|male|> <|1|> ming <|B3|> <|2|> tian <|A4|> <|3|> hui <|A5|>  <|eot|>
+- [ ] ~~The previous method is actually encoder-decoder architecture. As now decoder only architecture had already been proved as the best architecture, maybe it could also been achieved in decoder only architecture? No! On the other side, encoder-decoder architecture has its advantage in attention look back. like time alignment in audio, and maybe image alignment in figure, encoder works really well.~~
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.
 - [ ] Link this ASR with TTS like diffsinger.
 
 > Note: There is no tiktok encoding in this project because we use a simple method to pair notes, characters, and phonemes.
+
+---
+
+## New architecture
+
+Extract the decoder only model from the encoder-decoder whisper model. Train the tiny GPT with the decoder first, which could help the model to "learn" some basic knowlege from long text. Then append the audio encoder into the GPT, it could get a "smart" whisper, which could respond to the prompt and deal with multiple tasks.
+
+You may even give whatever sentences as prompt, like "please transcribe the following speech", "please transcribe the following singing", ...
+

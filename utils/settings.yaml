@@ -6,3 +6,18 @@ tokenizer:
 
 trainer:
   seed: 3407
+
+flat_models:
+  tiny:
+    total: 384
+    parts:
+      note:
+      slur:
+      start:
+      end:
+      hanzi: 200
+      pinyin:
+      tone:
+
+
+

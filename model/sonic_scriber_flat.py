@@ -22,7 +22,7 @@ from typing import Optional
 
 class CustomTextDecoder(nn.Module):
     def __init__(
-        self, dims:ModelDimensions, collate_fn: WhisperDataCollatorWithPadding
+        self, dims:ModelDimensions, collate_fn: WhisperDataCollatorWithPadding, model: str
     ):
         super().__init__()
         n_state = dims.n_text_state
@@ -69,6 +69,7 @@ class CustomTextDecoder(nn.Module):
 
         mask = torch.empty(n_ctx, n_ctx).fill_(-np.inf).triu_(1)
         self.register_buffer("mask", mask, persistent=False)
+        self.model_token_config = get_config()['flat_models'][model]
         
     def forward(self, batch:SonicBatch, audio_embedding: Tensor, kv_cache: Optional[dict] = None) -> dict:
         """
@@ -131,7 +132,7 @@ class SonicScriber(Whisper):
         dims = self.get_model_dims(model)
         print(dims)
         super().__init__(dims)
-        self.decoder = CustomTextDecoder(dims, collate_fn)
+        self.decoder = CustomTextDecoder(dims, collate_fn, model='tiny')
         
     def forward(self, batch:SonicBatch) -> Dict[str, Tensor]:
         return self.decoder(batch, self.encoder(batch.mel))
@@ -145,29 +146,28 @@ if __name__ == '__main__':
     DEVICE = "cpu"
     collate_fn=WhisperDataCollatorWithPadding()
     sonic_scriber = SonicScriber('tiny', collate_fn=collate_fn).to(DEVICE)
+    print(sonic_scriber.decoder.model_token_config)
     
-    with open('./assets/sonic_scriber_model.txt', 'w') as f:
-        f.write(str(sonic_scriber))
+    # with open('./assets/sonic_scriber_model.txt', 'w') as f:
+    #     f.write(str(sonic_scriber))
     
-    from data_reader.opencpop import OpenCpop
-    from data_reader.openslr_33 import Openslr33
-    dataset_a = OpenCpop(train=False)
-    dataset_b = Openslr33(train=False)
-    print(len(dataset_a), len(dataset_b), flush=True)
-    weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
+    # from data_reader.opencpop import OpenCpop
+    # from data_reader.openslr_33 import Openslr33
+    # dataset_a = OpenCpop(train=False)
+    # dataset_b = Openslr33(train=False)
+    # print(len(dataset_a), len(dataset_b), flush=True)
+    # weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 3)])
     
-    loader = DataLoader(weighted_dataset, 
-                            batch_size=10,
-                            shuffle=True,
-                            collate_fn=collate_fn,
-                            pin_memory=True,
-                            pin_memory_device = DEVICE
-                          )
-    for b in loader:
-        embeddings = sonic_scriber.encoder.forward(b.mel)
-        logits = sonic_scriber.decoder.forward(b, embeddings)
-        for k, v in logits.items():
-            print(f'{k:<8}', v.shape)
-        print(b.mel.shape, embeddings.shape)
-        break
+    # loader = DataLoader(weighted_dataset, 
+    #                         batch_size=10,
+    #                         shuffle=True,
+    #                         collate_fn=collate_fn,
+    #                         pin_memory=True,
+    #                         pin_memory_device = DEVICE
+    #                       )
+    # for b in loader:
+    #     logits = sonic_scriber.forward(b)
+    #     for k, v in logits.items():
+    #         print(f'{k:<8}', v.shape)
+    #     break
     
