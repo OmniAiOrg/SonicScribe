@@ -8,8 +8,8 @@ from utils.whisper_duration_auto_tag import WhisperDurationTagger
 from pypinyin import pinyin, lazy_pinyin, Style
 
 class Openslr68(BaseReader):
-    def __init__(self, train=True) -> None:
-        super().__init__(train)
+    def __init__(self, train=True,  key_filter=None) -> None:
+        super().__init__(train, key_filter)
         # prepare the dataset and save to pickle for next time to use
         self.pickle_path = self.config['path']+'/temp1'
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])
@@ -50,10 +50,15 @@ class Openslr68(BaseReader):
                 wav_files_not_exist.append(wav_file)
                 continue
             duration_start, duration_end = [], []
-            audio = self.load_wave(audio_path+wav_file, sample_rate=sample_rate)[0]
-            if len(text) > text_max_length or len(audio) > audio_max_sample_length:
-                print(f'{text}, {wav_file}, {len(text)} > {text_max_length} or {len(audio)} > {audio_max_sample_length}')
+            # audio = self.load_wave(audio_path+wav_file, sample_rate=sample_rate)[0]
+            # if len(text) > text_max_length or len(audio) > audio_max_sample_length:
+            #     print(f'{text}, {wav_file}, {len(text)} > {text_max_length} or {len(audio)} > {audio_max_sample_length}')
+            #     text_or_audio_exceed_size.append(id)
+            #     continue
+            audio_file_size = os.path.getsize(audio_path+wav_file)
+            if len(text) > text_max_length or audio_file_size > audio_max_sample_length*2:
                 text_or_audio_exceed_size.append(id)
+                print(f'{text}, {wav_file}, {len(text)} > {text_max_length} or {audio_file_size} > {audio_max_sample_length*2}')
                 continue
             audio_transcript_pair_list.append((str(wav_file), text, duration_start, duration_end))
         # print all id that ignored
@@ -116,7 +121,7 @@ class Openslr68(BaseReader):
         # assert len(hanzi_words) == len(pinyin) and len(tone) == len(dur_start) and \
         #     len(dur_end) == len(dur_start) and len(hanzi_words) == len(tone)
         assert len(hanzi_words) == len(pinyin) and len(tone) == len(pinyin) and len(hanzi_words) == len(tone)
-        return {
+        output = {
             'audio': self.audio_path+wav_path,
             'hanzi': hanzi_words,
             'pinyin': pinyin,
@@ -124,6 +129,9 @@ class Openslr68(BaseReader):
             # 'start': dur_start,
             # 'end': dur_end,
         }
+        if self.key_filter == None:
+            return output
+        return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':
     def print_data(hanzi_words, pinyin, tone, dur_start, dur_end):

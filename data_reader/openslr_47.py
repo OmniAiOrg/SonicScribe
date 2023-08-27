@@ -20,8 +20,8 @@ from utils.whisper_duration_auto_tag import WhisperDurationTagger
 from pypinyin import pinyin, lazy_pinyin, Style
 
 class Openslr47(BaseReader):
-    def __init__(self, train=True) -> None:
-        super().__init__(train)
+    def __init__(self, train=True, key_filter=None) -> None:
+        super().__init__(train, key_filter)
         # prepare the dataset and save to pickle for next time to use
         self.pickle_path = self.config['path']+'/temp-no-duration'
         self.AUDIO_MAX_LENGTH = int(self.config['AUDIO_MAX_LENGTH'])
@@ -114,7 +114,7 @@ class Openslr47(BaseReader):
         # assert len(hanzi_words) == len(pinyin) and len(tone) == len(dur_start) and \
         #     len(dur_end) == len(dur_start) and len(hanzi_words) == len(tone)
         assert len(hanzi_words) == len(pinyin) and len(tone) == len(pinyin) and len(hanzi_words) == len(tone)
-        return {
+        output = {
             'audio': self.audio_path+wav_path,
             'hanzi': hanzi_words,
             'pinyin': pinyin,
@@ -122,6 +122,9 @@ class Openslr47(BaseReader):
             # 'start': dur_start,
             # 'end': dur_end,
         }
+        if self.key_filter == None:
+            return output
+        return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':
     def print_data(hanzi_words, pinyin, tone, dur_start, dur_end):

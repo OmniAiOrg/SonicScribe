@@ -12,6 +12,7 @@ import tiktoken
 from whisper.tokenizer import Tokenizer, LANGUAGES, TO_LANGUAGE_CODE
 from utils.load_checkpoint import get_config
 from utils.note import notes
+from utils.ph import phs
 
 class NaiveTokenizer:
     
@@ -84,6 +85,9 @@ class WhisperTokenizer(Tokenizer):
         sot: int = self.special_tokens["<|startoftranscript|>"]
         translate: int = self.special_tokens["<|translate|>"]
         transcribe: int = self.special_tokens["<|transcribe|>"]
+        self.note: int = self.special_tokens["<|note|>"]
+        self.hanzi: int = self.special_tokens["<|hanzi|>"]
+        self.pinyin: int = self.special_tokens["<|pinyin|>"]
 
         langs = tuple(LANGUAGES.keys())
         sot_sequence = [sot]
@@ -94,6 +98,23 @@ class WhisperTokenizer(Tokenizer):
             sot_sequence.append(task_token)
 
         self.sot_sequence = tuple(sot_sequence)
+        
+    @cached_property
+    def pad(self) -> int:
+        return self.special_tokens["<|pad|>"]
+    
+    @cached_property
+    def notes_begin(self) -> int:
+        return self.special_tokens["<|A#3/Bb3|>"]
+    
+    def decode(self, token_ids: List[int], **kwargs) -> str:
+        token_ids = [t for t in token_ids if t < self.timestamp_begin or t >= self.notes_begin]
+        if 'stop_at' in kwargs:
+            stop_at = kwargs['stop_at']
+            del kwargs['stop_at']
+            target_index = token_ids.index(stop_at)+1
+            token_ids = token_ids[:target_index]
+        return self.encoding.decode(token_ids, **kwargs)
         
 @lru_cache(maxsize=None)
 def get_encoding(name: str = "multilingual"):
@@ -115,12 +136,16 @@ def get_encoding(name: str = "multilingual"):
         "<|startofprev|>",
         "<|nospeech|>",
         "<|notimestamps|>",
-        "<|AP|>",
-        "<|SP|>",
-        "<|SL|>",
+        *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
         *[f'<|{i}|>' for i in notes],
         *[f'<|{i}|>' for i in range(max_text_size)],
-        *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
+        "<|SL|>",
+        "<|pad|>",
+        "<|AP|>",
+        "<|SP|>",
+        "<|note|>",
+        "<|hanzi|>",
+        "<|pinyin|>"
     ]
 
     for token in specials:
@@ -142,7 +167,7 @@ def get_tokenizer(
     *,
     language: Optional[str] = None,
     task: Optional[str] = None,  # Literal["transcribe", "translate", None]
-) -> Tokenizer:
+) -> WhisperTokenizer:
     if language is not None:
         language = language.lower()
         if language not in LANGUAGES:
@@ -162,7 +187,7 @@ def get_tokenizer(
 
     encoding = get_encoding(name=encoding_name)
 
-    return Tokenizer(encoding=encoding, language=language, task=task)
+    return WhisperTokenizer(encoding=encoding, language=language, task=task)
 
     
 if __name__ == '__main__':
@@ -174,8 +199,18 @@ if __name__ == '__main__':
     print('-------')
     
     whisper_tokenizer = get_tokenizer(multilingual=True, language='zh', task='transcibe')
+    print(whisper_tokenizer.encoding.n_vocab)
     en = whisper_tokenizer.encode('<|1|>世<|A3|><|2|>界<|C#5/Db5|>', allowed_special="all")
     print(en)
     de = whisper_tokenizer.decode(en)
     print(de)
     print('-------')
+    
+    en = whisper_tokenizer.encode('<|1|>sh<|A3|><|2|>i<|C#5/Db5|>', allowed_special="all")
+    print(en)
+    de = whisper_tokenizer.decode(en)
+    print(de)
+    print('-------')
+    
+    print(whisper_tokenizer.encode('<|SL|>', allowed_special="all"))
+    print(whisper_tokenizer.encoding.encode_single_token('<|SL|>'))

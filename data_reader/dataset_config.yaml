@@ -44,7 +44,7 @@ Openslr68:
   license: CC BY-NC-ND 4.0
   website: https://openslr.org/68/
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/68-SLR68-MagicData/
-  DISABLE_TQDM: true
+  DISABLE_TQDM: false
 
 OpenCpop:
   name: OpenCpop

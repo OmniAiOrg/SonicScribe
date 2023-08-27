@@ -6,7 +6,7 @@ from utils.chinese_to_pinyin import is_chinese
 from utils.load_checkpoint import get_config
 
 class BaseReader(torch.utils.data.Dataset):
-    def __init__(self, train) -> None:
+    def __init__(self, train, key_filter=None) -> None:
         self.dataset_name = type(self).__name__
         self.config = self.get_config()
         if train:
@@ -15,6 +15,7 @@ class BaseReader(torch.utils.data.Dataset):
         self.audio_transcript_pair_list = None
         self.path:str = self.config['path']
         self.dummy_reader = False # if True, get_item will not return wav
+        self.key_filter = key_filter
         
     def set_dummy(self, dummy: bool):
         self.dummy_reader = dummy

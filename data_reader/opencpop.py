@@ -19,8 +19,8 @@ from utils.note import notes
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE, get_tokenizer
 
 class OpenCpop(BaseReader):
-    def __init__(self, train=True) -> None:
-        super().__init__(train)
+    def __init__(self, train=True, key_filter=None) -> None:
+        super().__init__(train, key_filter)
         # prepare the dataset and save to pickle for next time to use
         self.pickle_path = self.config['path']+'/temp2'
         self.NONE_TEXT = str(self.config['NONE_TEXT'])
@@ -184,7 +184,8 @@ class OpenCpop(BaseReader):
         assert len(hanzi_words) == len(pinyin) and len(note) == len(dur_start) and \
             len(dur_end) == len(slur) and len(hanzi_words) == len(note) \
                 and len(note) == len(dur_end)
-        return {
+        
+        output:dict = {
             'audio': self.path + audio_dir,
             'hanzi': hanzi_words,
             'pinyin': pinyin,
@@ -193,6 +194,9 @@ class OpenCpop(BaseReader):
             'end': dur_end,
             'slur': slur
         }
+        if self.key_filter == None:
+            return output
+        return {key: value for key, value in output.items() if key in self.key_filter}
 
 
 if __name__ == '__main__':

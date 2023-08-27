@@ -1,0 +1,52 @@
+WhisperOfficial(
+  (encoder): AudioEncoder(
+    (conv1): Conv1d(80, 384, kernel_size=(3,), stride=(1,), padding=(1,))
+    (conv2): Conv1d(384, 384, kernel_size=(3,), stride=(2,), padding=(1,))
+    (blocks): ModuleList(
+      (0-3): 4 x ResidualAttentionBlock(
+        (attn): MultiHeadAttention(
+          (query): Linear(in_features=384, out_features=384, bias=True)
+          (key): Linear(in_features=384, out_features=384, bias=False)
+          (value): Linear(in_features=384, out_features=384, bias=True)
+          (out): Linear(in_features=384, out_features=384, bias=True)
+        )
+        (attn_ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+        (mlp): Sequential(
+          (0): Linear(in_features=384, out_features=1536, bias=True)
+          (1): GELU(approximate='none')
+          (2): Linear(in_features=1536, out_features=384, bias=True)
+        )
+        (mlp_ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+      )
+    )
+    (ln_post): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+  )
+  (decoder): TextDecoder(
+    (token_embedding): Embedding(52022, 384)
+    (blocks): ModuleList(
+      (0-3): 4 x ResidualAttentionBlock(
+        (attn): MultiHeadAttention(
+          (query): Linear(in_features=384, out_features=384, bias=True)
+          (key): Linear(in_features=384, out_features=384, bias=False)
+          (value): Linear(in_features=384, out_features=384, bias=True)
+          (out): Linear(in_features=384, out_features=384, bias=True)
+        )
+        (attn_ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+        (cross_attn): MultiHeadAttention(
+          (query): Linear(in_features=384, out_features=384, bias=True)
+          (key): Linear(in_features=384, out_features=384, bias=False)
+          (value): Linear(in_features=384, out_features=384, bias=True)
+          (out): Linear(in_features=384, out_features=384, bias=True)
+        )
+        (cross_attn_ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+        (mlp): Sequential(
+          (0): Linear(in_features=384, out_features=1536, bias=True)
+          (1): GELU(approximate='none')
+          (2): Linear(in_features=1536, out_features=384, bias=True)
+        )
+        (mlp_ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+      )
+    )
+    (ln): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+  )
+)
