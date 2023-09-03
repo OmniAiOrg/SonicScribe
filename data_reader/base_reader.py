@@ -52,5 +52,5 @@ class BaseReader(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.audio_transcript_pair_list)
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> dict:
         return self.audio_transcript_pair_list[idx]

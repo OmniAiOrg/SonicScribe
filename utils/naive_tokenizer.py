@@ -104,15 +104,23 @@ class WhisperTokenizer(Tokenizer):
         return self.special_tokens["<|pad|>"]
     
     @cached_property
+    def soi(self) -> int:
+        return self.special_tokens["<|startofinference|>"]
+    
+    @cached_property
     def notes_begin(self) -> int:
         return self.special_tokens["<|A#3/Bb3|>"]
+    
+    @cached_property
+    def order(self) -> int:
+        return self.special_tokens["<|order|>"]
     
     def decode(self, token_ids: List[int], **kwargs) -> str:
         token_ids = [t for t in token_ids if t < self.timestamp_begin or t >= self.notes_begin]
         if 'stop_at' in kwargs:
-            stop_at = kwargs['stop_at']
+            stop_at:int = kwargs['stop_at']
             del kwargs['stop_at']
-            target_index = token_ids.index(stop_at)+1
+            target_index = token_ids.index(stop_at)+1 if stop_at in token_ids else len(token_ids)+1
             token_ids = token_ids[:target_index]
         return self.encoding.decode(token_ids, **kwargs)
         
@@ -136,7 +144,7 @@ def get_encoding(name: str = "multilingual"):
         "<|startofprev|>",
         "<|nospeech|>",
         "<|notimestamps|>",
-        *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
+        # *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
         *[f'<|{i}|>' for i in notes],
         *[f'<|{i}|>' for i in range(max_text_size)],
         "<|SL|>",
@@ -145,7 +153,11 @@ def get_encoding(name: str = "multilingual"):
         "<|SP|>",
         "<|note|>",
         "<|hanzi|>",
-        "<|pinyin|>"
+        "<|pinyin|>",
+        "<|startofinference|>",
+        "<|order|>",
+        # For new special tokens, add them before this line
+        *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
     ]
 
     for token in specials:

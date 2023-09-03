@@ -7,7 +7,7 @@ import torch
 from whisper.model import Whisper, ModelDimensions
 from torch import Tensor
 from whisper.model import ModelDimensions, TextDecoder
-from typing import Optional
+from typing import Dict, Iterable, Optional
 from utils.naive_tokenizer import get_tokenizer
 
 class WhisperOfficial(Whisper):
@@ -34,9 +34,9 @@ class WhisperOfficial(Whisper):
             self.dims.n_text_layer,
         )
         
-    def forward(self, batch:WhisperOfficialBatch) -> dict[str, Tensor]:
-        return self.decoder(batch.data, self.encoder(batch.mel))
-
+    @property
+    def is_multilingual(self):
+        return True
 
 if __name__ == '__main__':
     from torch.utils.data import DataLoader

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torchaudio
 import torchaudio.transforms as at
+from data_reader.base_reader import BaseReader
 from model.chinese_token_embeddings import ChineseTokenEmbedding
 from model.pinyin_token_embeddings import PinyinTokenEmbedding
 from utils.pre_tokenizers import *
@@ -245,8 +246,9 @@ class WhisperOfficialDataCollatorWithPadding:
         features: Dict[str, list] = {'mel': [], 'data': [], 'data_label': []}
         feature_lengths: list[int] = []
         for data in input:
+            ORDER = 'ORDER' in data and data.pop('ORDER') == 1
             assert len(set(data.keys()) - set(dataset_keys)
-                       ) == 0, 'not all keys in data legal'
+                       ) == 0, f'not all keys in data legal. {data.keys()}'
             mel = self.audio_to_mel(data['audio'])
             features['mel'].append(mel)
             keys = list(data.keys())
@@ -259,7 +261,7 @@ class WhisperOfficialDataCollatorWithPadding:
             data_concated = ''
             for i in range(len(data[keys[0]])):
                 # 1. order number, exist when not only hanzi exist
-                if not (len(keys)==1 and keys[0]=='hanzi'):
+                if ORDER:
                     data_concated += f'<|{i}|>'
                 # 2. hanzi
                 if 'hanzi' in keys:
@@ -272,13 +274,18 @@ class WhisperOfficialDataCollatorWithPadding:
                     note = data['note']
                     data_concated += f'<|{note[i]}|>'
             data_concated = self.tokenizer.encode(data_concated, allowed_special="all")
-            data_concated = list(self.tokenizer.sot_sequence) + [
-                self.tokenizer.special_tokens[f'<|{key}|>'] for key in keys] + data_concated + [
+            data_builder = list(self.tokenizer.sot_sequence) 
+            data_builder += [
+                self.tokenizer.special_tokens[f'<|{key}|>'] for key in keys] 
+            if ORDER:
+                data_builder += [self.tokenizer.order]
+            data_builder += [
+                    self.tokenizer.soi] +data_concated + [
                     self.tokenizer.eot]
-            features['data'].append(data_concated)
+            features['data'].append(data_builder)
             features['data_label'].append(
-                data_concated[:-1]+[self.tokenizer.eot])
-            feature_lengths.append(len(data_concated))
+                data_builder[:-1]+[self.tokenizer.eot])
+            feature_lengths.append(len(data_builder))
 
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
 
@@ -308,7 +315,18 @@ class WhisperOfficialDataCollatorWithPadding:
 
 class WeightedDataset(torch.utils.data.Dataset):
     def __init__(self, datasets_with_weights):
-        self.datasets = [ds for ds, weight in datasets_with_weights for _ in range(weight)]
+        def expand(x):
+            if type(x) == tuple and len(x) == 2:
+                return (x[0], x[1], '')
+            if type(x) == tuple and len(x) == 1:
+                return (x[1], 1, '')
+            if type(x) != tuple:
+                return (x, 1, '')
+            else:
+                return x
+        datasets_with_weights = [expand(x) for x in datasets_with_weights]
+        self.datasets = [ds for ds, weight, settings in datasets_with_weights for _ in range(weight)]
+        self.settings:list[str] = [settings for ds, weight, settings in datasets_with_weights for _ in range(weight)]
         # self.weights = [weight for _, weight in datasets_with_weights]
         self.lengths = [len(ds) for ds in self.datasets]
         self.cum_lengths = torch.tensor(self.lengths).cumsum(dim=0).tolist()
@@ -317,10 +335,13 @@ class WeightedDataset(torch.utils.data.Dataset):
         # self.weights = [w / total_weight for w in self.weights]
         # self.cum_weights = torch.tensor(self.weights).cumsum(dim=0).tolist()
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> dict:
         dataset_idx, inside_data_idx = self._get_random_dataset_index(index)
-        selected_dataset = self.datasets[dataset_idx]
-        return selected_dataset[inside_data_idx]
+        selected_dataset:BaseReader = self.datasets[dataset_idx]
+        item = selected_dataset[inside_data_idx]
+        if 'order' in self.settings[dataset_idx]:
+            item['ORDER'] = 1
+        return item
 
     def _get_random_dataset_index(self, index):
         for i, cum_lengths in enumerate(self.cum_lengths):
@@ -359,8 +380,10 @@ if __name__ == '__main__':
         break
     '''
     dataset_a = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note'])
-    dataset_b = Openslr33(train=False, key_filter=['audio', 'hanzi'])
-    weighted_dataset = WeightedDataset([(dataset_a, 3), (dataset_b, 1)])
+    # dataset_b = Openslr33(train=False, key_filter=['audio', 'hanzi'])
+    dataset_b = OpenCpop(train=False, key_filter=['audio', 'hanzi'])
+    dataset_c = OpenCpop(train=False, key_filter=['audio', 'note'])
+    weighted_dataset = WeightedDataset([dataset_a, (dataset_a, 1, 'order'), (dataset_b, 1, 'order'), (dataset_c, 1, 'order')])
     collate_fn = WhisperOfficialDataCollatorWithPadding()
     batch_size=8
     loader = DataLoader(weighted_dataset,

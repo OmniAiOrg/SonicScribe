@@ -174,7 +174,7 @@ class OpenCpop(BaseReader):
         audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
         return audio_dir, hanzi_words, note_duration, text
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> dict:
         pair = super().__getitem__(idx)
         audio_dir, text, initials, finals, note, note_duration, slur, hanzi_words = pair
         pinyin = [initials[i]+finals[i] if initials[i] not in ['AP', 'SP', 'SL', 'NO'] else initials[i] for i in range(len(initials))]

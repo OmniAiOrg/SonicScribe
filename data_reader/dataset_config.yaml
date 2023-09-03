@@ -46,6 +46,16 @@ Openslr68:
   path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/68-SLR68-MagicData/
   DISABLE_TQDM: false
 
+Openslr38:
+  name: Free ST Chinese Mandarin Corpus
+  identifier: SLR38
+  summary: A free Chinese Mandarin corpus by Surfingtech (www.surfing.ai), containing utterances from 855 speakers, 102600 utterances;
+  category: Speech
+  license: Creative Common BY-NC-ND 4.0
+  website: https://openslr.org/38/
+  path: /mnt/private_cq/dataset/Corpus/zipped_file/ft_local/38-SLR38-ST-CMDS-2017/ST-CMDS-20170001_1-OS/
+  DISABLE_TQDM: false
+
 OpenCpop:
   name: OpenCpop
   identifier: OCPOP

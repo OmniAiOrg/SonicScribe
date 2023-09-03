@@ -53,7 +53,7 @@ class WhisperOfficialLightling(LightningModule):
     
     
     def forward(self, x:WhisperOfficialBatch):
-        return self.model.forward(x)
+        return self.model.forward(x.mel, x.data)
     
     def calculate_loss(self, out_logits:Tensor, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = torch.transpose(out_logits, 1, 2)
@@ -66,13 +66,13 @@ class WhisperOfficialLightling(LightningModule):
         return out_wer
 
     def training_step(self, batch:WhisperOfficialBatch, batch_id:int):
-        out_logits = self.model(batch)
+        out_logits = self.model(batch.mel, batch.data)
         loss = self.calculate_loss(out_logits, batch, batch_id)
         self.log(f'train/loss', loss, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss
     
     def validation_step(self, batch:WhisperOfficialBatch, batch_id:int):
-        out_logits = self.model(batch)
+        out_logits = self.model(batch.mel, batch.data)
         loss = self.calculate_loss(out_logits, batch, batch_id)
         out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
         self.log(f'val/loss', loss, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
@@ -80,7 +80,7 @@ class WhisperOfficialLightling(LightningModule):
         return loss, out_wer
         
     def predict_step(self, batch, batch_id):
-        out_logits = self.model(batch)
+        out_logits = self.model(batch.mel, batch.data)
         out_loss = self.calculate_loss(out_logits, batch, batch_id)
         return out_loss
 
