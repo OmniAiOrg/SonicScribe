@@ -121,6 +121,12 @@ class WhisperTokenizer(Tokenizer):
     def order(self) -> int:
         return self.special_tokens["<|order|>"]
     
+    def get_all_notes(self) -> list[str]:
+        return [f'<|{i}|>' for i in notes]
+    
+    def get_all_timestamps(self) -> list[str]:
+        return [f"<|{i * 0.02:.2f}|>" for i in range(1501)]
+    
     def decode(self, token_ids: List[int], **kwargs) -> str:
         token_ids = [t for t in token_ids if t < self.timestamp_begin or t >= self.notes_begin]
         if 'include_timestamp' in kwargs and bool(kwargs['include_timestamp']) is True:

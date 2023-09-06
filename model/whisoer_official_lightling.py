@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from model.whisper_official import WhisperOfficial
+from utils.evaluate import CerTransform
 from utils.general_dataloader import SonicBatch, WhisperOfficialBatch, WhisperOfficialDataCollatorWithPadding, dataset_keys
 from utils.load_checkpoint import get_config
 from torch.optim.lr_scheduler import ExponentialLR
@@ -15,7 +16,7 @@ class WhisperOfficialLightling(LightningModule):
     def __init__(self, cfg, model:WhisperOfficial) -> None:
         super().__init__()
         self.model = model
-        self.tokenizer = self.model.tokenizer
+        self.tokenizer: WhisperTokenizer = self.model.tokenizer
         pad_label = self.tokenizer.pad
         self.dataset_keys = dataset_keys
         self.batch_size = cfg.batch_size
@@ -23,6 +24,9 @@ class WhisperOfficialLightling(LightningModule):
         self.ce_loss = nn.CrossEntropyLoss(ignore_index=pad_label)
         
         self.wer = jiwer.wer
+        hanzi_ct = CerTransform(list(self.tokenizer.special_tokens.keys()))
+        timestamp_ct = CerTransform(keep_tokens=self.tokenizer.get_all_timestamps())
+        note_ct = CerTransform(keep_tokens=self.tokenizer.get_all_notes())
         def wer_compact(out_logits:dict, batch:WhisperOfficialBatch):
             key = 'data'
             logits = out_logits
@@ -35,7 +39,7 @@ class WhisperOfficialLightling(LightningModule):
             compact_label = [label[i] for i in range(len(label)) if len(label[i])>0]
             compact_pred = [pred[i] for i in range(len(label)) if len(label[i])>0]
             if len(compact_label) == 0:
-                wer_score = 0.0
+                return 0, 0, 0
             else:
                 logger:TensorBoardLogger = self.logger
                 log_str = ''
@@ -43,8 +47,10 @@ class WhisperOfficialLightling(LightningModule):
                     log_str += f'**pred**:  {compact_pred[i]}  \n'
                     log_str += f'**label**: {compact_label[i]}  \n'
                 logger.experiment.add_text(f'wer/{key}', log_str, self.global_step)
-                wer_score = self.wer(compact_label, compact_pred)
-            return wer_score
+                hanzi_wer_score = self.wer(compact_label, compact_pred, hanzi_ct, hanzi_ct)
+                timestamp_wer_score = self.wer(compact_label, compact_pred, timestamp_ct, timestamp_ct)
+                note_wer_score = self.wer(compact_label, compact_pred, note_ct, note_ct)
+                return hanzi_wer_score, note_wer_score, timestamp_wer_score
         self.wer_compact = wer_compact
 
         self.cfg = cfg
@@ -62,8 +68,8 @@ class WhisperOfficialLightling(LightningModule):
         return out_loss
     
     def calculate_char_error_rate(self, out_logits, batch:WhisperOfficialBatch, batch_id:int):
-        out_wer = self.wer_compact(out_logits, batch)
-        return out_wer
+        hanzi_wer_score, note_wer_score, timestamp_wer_score = self.wer_compact(out_logits, batch)
+        return hanzi_wer_score, note_wer_score, timestamp_wer_score
 
     def training_step(self, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = self.model(batch.mel, batch.data)
@@ -74,10 +80,12 @@ class WhisperOfficialLightling(LightningModule):
     def validation_step(self, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = self.model(batch.mel, batch.data)
         loss = self.calculate_loss(out_logits, batch, batch_id)
-        out_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
+        hanzi_wer, note_wer, timestamp_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
         self.log(f'val/loss', loss, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'val/wer', out_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        return loss, out_wer
+        self.log(f'val/hanzi_wer', hanzi_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'val/note_wer', note_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'val/time_wer', timestamp_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        return loss, hanzi_wer
         
     def predict_step(self, batch, batch_id):
         out_logits = self.model(batch.mel, batch.data)
@@ -123,7 +131,7 @@ if __name__ == '__main__':
     base_config = all_config['BaseReader']
     SAMPLE_RATE = base_config['SAMPLE_RATE']
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    # DEVICE = "cpu"
+    DEVICE = "cpu"
     @dataclass
     class Config:
         learning_rate = 0.01
@@ -138,13 +146,13 @@ if __name__ == '__main__':
         sample_rate = SAMPLE_RATE
         
     cfg = Config()
-    trainer = Trainer(accelerator=DEVICE)
+    trainer = Trainer(accelerator=DEVICE, num_sanity_val_steps=10)
     model = WhisperOfficial('tiny')
     model = WhisperOfficialLightling(cfg, model).to(DEVICE)
     
     from data_reader.opencpop import OpenCpop
     from torch.utils.data import DataLoader
-    dataset_a = OpenCpop(train=False)
+    dataset_a = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note'])
     loader = DataLoader(dataset_a, 
                             batch_size=cfg.batch_size,
                             shuffle=True,
@@ -152,4 +160,4 @@ if __name__ == '__main__':
                             pin_memory=True,
                             pin_memory_device = DEVICE
                           )
-    trainer.fit(model, loader)
+    trainer.fit(model, loader, loader)

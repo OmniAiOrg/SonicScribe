@@ -8,14 +8,14 @@ from whisper.model import Whisper, ModelDimensions
 from torch import Tensor
 from whisper.model import ModelDimensions, TextDecoder
 from typing import Dict, Iterable, Optional
-from utils.naive_tokenizer import get_tokenizer
+from utils.naive_tokenizer import WhisperTokenizer, get_tokenizer
 
 class WhisperOfficial(Whisper):
     def get_model_dims(self, model='tiny'):
         checkpoint = get_whisper_checkpoint(model)   
         dims = ModelDimensions(**checkpoint["dims"])
         assert dims.n_vocab == 51865
-        self.tokenizer = get_tokenizer(multilingual=True, language='zh', task='transcibe')
+        self.tokenizer: WhisperTokenizer = get_tokenizer(multilingual=True, language='zh', task='transcibe')
         # n_vocab = self.tokenizer.encode('<|pad|>', allowed_special="all")[0]+1
         n_vocab = self.tokenizer.encoding.n_vocab
         assert n_vocab >= dims.n_vocab, f'n_vocab={n_vocab} dims.n_vocab={dims.n_vocab}'
