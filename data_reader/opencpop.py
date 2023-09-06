@@ -212,6 +212,8 @@ if __name__ == '__main__':
     print(len(oc_test), len(oc_train))
     data = oc_test[12]
     print(data['audio'])
+    import shutil
+    shutil.copyfile(data['audio'], 'logs/test.wav')
     print_data(data['hanzi'], data['pinyin'], data['note'], data['start'], data['end'], data['slur'])
     '''
     能:neng  [A#3/Bb3] 0 (0.00->0.25)

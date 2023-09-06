@@ -148,6 +148,8 @@ if __name__ == '__main__':
     print(len(openslr_33_train), len(openslr_33_test))
     data = openslr_33_train[56]
     print(data['audio'])
+    import shutil
+    shutil.copyfile(data['audio'], 'logs/test.wav')
     print_data(data['hanzi'], data['pinyin'], data['tone'], data['start'], data['end'])
     '''
     环:huan  [2] (0.32->0.80)

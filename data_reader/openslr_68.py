@@ -145,5 +145,7 @@ if __name__ == '__main__':
     print(len(openslr_68_train), len(openslr_68_test))
     data = openslr_68_train[56]
     print(data)
+    import shutil
+    shutil.copyfile(data['audio'], 'logs/test.wav')
     # print_data(data['hanzi'], data['pinyin'], data['tone'], data['start'], data['end'])
    

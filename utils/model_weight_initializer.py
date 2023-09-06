@@ -43,7 +43,7 @@ def initialize_whisper_official_from_whisper(model: WhisperOfficial):
             new_checkpoint[f'{k}'] = v
     model.load_state_dict(new_checkpoint, strict = False)
     
-def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: WhisperOfficial):
+def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: WhisperOfficial, strict=False):
     with open(checkpoint_file, "rb") as fp:
         checkpoint = torch.load(fp, map_location='cpu')
     new_checkpoint = {}
@@ -51,7 +51,7 @@ def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: Whis
     for k, v in checkpoint["state_dict"].items():
         k:str = k
         k = k.replace('model.', '')
-        if 'token_embedding' in k:
+        if 'token_embedding' in k and not strict:
             p = [p for n, p in model.named_parameters() if n==k][0]
             print(f'k={k}, p={p.shape}')
             assert p.shape[0] >= v.shape[0], f'p.shape={p.shape}, v.shape={ v.shape}'

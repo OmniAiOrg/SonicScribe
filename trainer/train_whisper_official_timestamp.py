@@ -25,30 +25,31 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "small_lr_003"
+train_id = "whisper_official_timestamp_007"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-resume_checkpoint = "small_lr_003/last.ckpt"
+# resume_checkpoint = "whisper_official_005/checkpoint-002-0.00.ckpt"
+resume_checkpoint = "whisper_official_timestamp_006/last-v1.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 0.00001
-    weight_decay = 0.001
+    learning_rate = 0.001
+    weight_decay = 0.01
     adam_epsilon = 1e-7
-    warmup_steps = 0
-    batch_size = 8
+    warmup_steps = 2
+    batch_size = 6
     precision = '16-mixed' # 32 for single, 16 for half (faster)
     num_worker = 8 # <= batch_size, <= cpu cores, larger is better
     pin_memory=True
     num_train_epochs = 50
-    gradient_accumulation_steps = 3
+    gradient_accumulation_steps = 4
     sample_rate = SAMPLE_RATE
-    limit_val_batches = 0.1
+    limit_val_batches = 1
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
-    val_check_interval = 2000 # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
+    val_check_interval = None # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
     
@@ -100,8 +101,8 @@ collect_fn = WhisperOfficialDataCollatorWithPadding(model = model_size, num_work
 model = WhisperOfficial('tiny')
 if ckpt_path == None:
     initialize_whisper_official_from_whisper(model)
-# else:
-    # initialize_whisper_official_from_checkpoint(ckpt_path, model)
+else:
+    initialize_whisper_official_from_checkpoint(ckpt_path, model)
 model = WhisperOfficialLightling(cfg, model).to(DEVICE)
 
 # 3. Dataset for training and validation
@@ -118,66 +119,40 @@ def naive_dataloader(dataset, train):
 
 def get_dataloader(train=True) -> DataLoader:
     dataset_a = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note'])
-    dataset_b = Openslr33(train=train, key_filter=['audio', 'hanzi'])
-    dataset_c = Openslr47(train=train, key_filter=['audio', 'hanzi'])
-    dataset_d = Openslr68(train=train, key_filter=['audio', 'hanzi'])
-    # dataset_e = OpenCpop(train=train, key_filter=['audio', 'hanzi']) # hanzi only
-    # dataset_f = OpenCpop(train=train, key_filter=['audio', 'note']) # note only
-    weighted_dataset = WeightedDataset(
-        [
-        # (dataset_a, 3, 'order'), 
-        #  (dataset_a, 3), 
-         (dataset_b, 1), 
-        #  (dataset_b, 1, 'order'), 
-         (dataset_c, 1), 
-        #  (dataset_c, 1, 'order'), 
+    dataset_b = OpenCpop(train=train, key_filter=['audio', 'hanzi']) # hanzi only
+    dataset_c = OpenCpop(train=train, key_filter=['audio', 'note']) # note only
+    dataset_d = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'end'])
+    dataset_e = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'end']) # hanzi only
+    dataset_f = OpenCpop(train=train, key_filter=['audio', 'note', 'end']) # note only
+    weighted_dataset = WeightedDataset([
+        (dataset_a, 1, 'order'), (dataset_a, 1), 
+         (dataset_b, 1), (dataset_b, 1, 'order'), 
+         (dataset_c, 1), (dataset_c, 1, 'order'), 
          (dataset_d, 1),
-        #  (dataset_d, 1, 'order'),
-        #  (dataset_e, 1),(dataset_e, 1), (dataset_f, 1, 'order'), (dataset_f, 1, 'order')
+         (dataset_d, 1, 'order'), 
+         (dataset_e, 1),(dataset_e, 1, 'order'), 
+         (dataset_f, 1), (dataset_f, 1, 'order')
          ])
-    # weighted_dataset = WeightedDataset([(dataset_a,1,'order')])
-    print('Train' if train else 'Test', 'weighted_dataset', len(weighted_dataset), 
-          'OpenCpop', len(dataset_a), 'Openslr33', len(dataset_b), 'Openslr47', len(dataset_c), 
-          'Openslr68', len(dataset_d))
     dataloader = naive_dataloader(weighted_dataset, train)
     return dataloader
     
 train_dataloader = get_dataloader(True)
 
-# def get_val_dataloader(train=True) -> DataLoader:
-#     dataset_a = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note'])
-#     dataset_b = Openslr33(train=train, key_filter=['audio', 'hanzi'])
-#     # dataset_b = OpenCpop(train=train, key_filter=['audio', 'hanzi']) # hanzi only
-#     # dataset_c = OpenCpop(train=train, key_filter=['audio', 'note']) # note only
-#     weighted_dataset = WeightedDataset(
-#         [
-#             # (dataset_a, 1, 'order'), 
-#         #  (dataset_a, 1), 
-#         (dataset_b, 1), 
-#         # (dataset_b, 1, 'order'), (dataset_c, 1), (dataset_c, 1, 'order')
-#          ])
-#     dataloader = naive_dataloader(weighted_dataset, train)
-#     return dataloader
-val_dataloader = get_dataloader(False)
-
-'''
-# Run learning rate finder
-trainer = Trainer()
-from pytorch_lightning.tuner import Tuner
-tuner = Tuner(trainer)
-lr_finder = tuner.lr_find(model, train_dataloaders=train_dataloader, num_training=501)
-print(lr_finder.results)
-fig = lr_finder.plot(suggest=True)
-fig.savefig('logs/lr.png')
-new_lr = lr_finder.suggestion()
-print('new_lr', new_lr)
-exit()
-'''
+def get_val_dataloader(train=True) -> DataLoader:
+    # dataset_a = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note'])
+    dataset_b = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'end']) # hanzi only
+    weighted_dataset = WeightedDataset([
+        # (dataset_a, 1, 'order'), (dataset_a, 1), 
+        #  (dataset_b, 1), 
+         (dataset_b, 1, 'order')])
+    dataloader = naive_dataloader(weighted_dataset, train)
+    return dataloader
+val_dataloader = get_val_dataloader(False)
 
 # 4. fit the model
 trainer.fit(
     model, 
     train_dataloader, 
     val_dataloader,
-    ckpt_path = ckpt_path
+    # ckpt_path = ckpt_path
     )

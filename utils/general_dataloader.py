@@ -255,7 +255,7 @@ class WhisperOfficialDataCollatorWithPadding:
             keys.remove('audio')
             assert len(keys) >= 1
             for key in keys:
-                assert f'<|{key}|>' in self.tokenizer.special_tokens
+                assert f'<|{key}|>' in self.tokenizer.special_tokens, f'<|{key}|> not in special_tokens'
             # hanzi = data['hanzi']
             # note = data['note']
             data_concated = ''
@@ -273,6 +273,11 @@ class WhisperOfficialDataCollatorWithPadding:
                 if 'note' in keys:
                     note = data['note']
                     data_concated += f'<|{note[i]}|>'
+                # 4. end (of timestamp)
+                if 'end' in keys:
+                    end = data['end']
+                    value = end[i]
+                    data_concated += f'<|{value}|>'
             data_concated = self.tokenizer.encode(data_concated, allowed_special="all")
             data_builder = list(self.tokenizer.sot_sequence) 
             data_builder += [
@@ -284,7 +289,7 @@ class WhisperOfficialDataCollatorWithPadding:
                     self.tokenizer.eot]
             features['data'].append(data_builder)
             features['data_label'].append(
-                data_builder[:-1]+[self.tokenizer.eot])
+                data_builder[1:]+[self.tokenizer.eot])
             feature_lengths.append(len(data_builder))
 
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
@@ -379,11 +384,11 @@ if __name__ == '__main__':
         print(sonic_batch_to_shape(b))
         break
     '''
-    dataset_a = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note'])
+    dataset_a = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'end'])
     # dataset_b = Openslr33(train=False, key_filter=['audio', 'hanzi'])
     dataset_b = OpenCpop(train=False, key_filter=['audio', 'hanzi'])
     dataset_c = OpenCpop(train=False, key_filter=['audio', 'note'])
-    weighted_dataset = WeightedDataset([dataset_a, (dataset_a, 1, 'order'), (dataset_b, 1, 'order'), (dataset_c, 1, 'order')])
+    weighted_dataset = WeightedDataset([dataset_a, (dataset_a, 10, 'order'), (dataset_b, 1, 'order'), (dataset_c, 1, 'order')])
     collate_fn = WhisperOfficialDataCollatorWithPadding()
     batch_size=8
     loader = DataLoader(weighted_dataset,
@@ -399,6 +404,8 @@ if __name__ == '__main__':
         # print(b)
         print(whisper_official_batch_to_shape(b))
         for i in range(batch_size):
-            print(collate_fn.tokenizer.decode(
+            print('Data', collate_fn.tokenizer.decode(
                 b.data[i].tolist(), stop_at=collate_fn.tokenizer.eot))
+            print('Labl',collate_fn.tokenizer.decode(
+                b.data_label[i].tolist(), stop_at=collate_fn.tokenizer.eot))
         break

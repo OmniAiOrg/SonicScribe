@@ -30,8 +30,8 @@ class WhisperOfficialLightling(LightningModule):
             # print(key, logits.shape,label.shape)
             tokenizer:WhisperTokenizer = self.tokenizer
             logits = logits.argmax(dim=-1)
-            label = [tokenizer.decode(label[i], stop_at=tokenizer.eot) for i in range(self.cfg.batch_size)]
-            pred = [tokenizer.decode(logits[i], stop_at=tokenizer.eot) for i in range(self.cfg.batch_size)]
+            label = [tokenizer.decode(label[i], stop_at=tokenizer.eot, include_timestamp=True) for i in range(self.cfg.batch_size)]
+            pred = [tokenizer.decode(logits[i], stop_at=tokenizer.eot, include_timestamp=True) for i in range(self.cfg.batch_size)]
             compact_label = [label[i] for i in range(len(label)) if len(label[i])>0]
             compact_pred = [pred[i] for i in range(len(label)) if len(label[i])>0]
             if len(compact_label) == 0:

@@ -17,7 +17,8 @@ from whisper.audio import (
     log_mel_spectrogram,
     pad_or_trim,
 )
-from whisper.decoding import DecodingOptions, DecodingResult
+from inference.decoding import DecodingOptions, DecodingResult
+from inference.decoding import decode as decode_function
 from whisper.timing import add_word_timestamps
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
 from whisper.utils import (
@@ -125,28 +126,13 @@ def transcribe(
     mel = log_mel_spectrogram(audio, padding=N_SAMPLES)
     content_frames = mel.shape[-1] - N_FRAMES
 
-    if decode_options.get("language", None) is None:
-        if not model.is_multilingual:
-            decode_options["language"] = "en"
-        else:
-            if verbose:
-                print(
-                    "Detecting language using up to the first 30 seconds. Use `--language` to specify the language"
-                )
-            mel_segment = pad_or_trim(mel, N_FRAMES).to(model.device).to(dtype)
-            _, probs = model.detect_language(mel_segment)
-            decode_options["language"] = max(probs, key=probs.get)
-            if verbose is not None:
-                print(
-                    f"Detected language: {LANGUAGES[decode_options['language']].title()}"
-                )
+    assert decode_options.get("language", None) is not None
 
     language: str = decode_options["language"]
     task: str = decode_options.get("task", "transcribe")
     tokenizer = get_tokenizer(model.is_multilingual, language=language, task=task)
 
-    if word_timestamps and task == "translate":
-        warnings.warn("Word-level timestamps on translations may not be reliable.")
+    assert not (word_timestamps and task == "translate")
 
     def decode_with_fallback(segment: torch.Tensor) -> DecodingResult:
         temperatures = (
@@ -165,7 +151,7 @@ def transcribe(
                 kwargs.pop("best_of", None)
 
             options = DecodingOptions(**kwargs, temperature=t)
-            decode_result = model.decode(segment, options)
+            decode_result = decode_function(model, segment, options)
 
             needs_fallback = False
             if (
@@ -226,6 +212,7 @@ def transcribe(
     with tqdm.tqdm(
         total=content_frames, unit="frames", disable=verbose is not False
     ) as pbar:
+        last_speech_timestamp = 0.0
         while seek < content_frames:
             time_offset = float(seek * HOP_LENGTH / SAMPLE_RATE)
             mel_segment = mel[:, seek : seek + N_FRAMES]
@@ -325,10 +312,13 @@ def transcribe(
                     num_frames=segment_size,
                     prepend_punctuations=prepend_punctuations,
                     append_punctuations=append_punctuations,
+                    last_speech_timestamp=last_speech_timestamp,
                 )
                 word_end_timestamps = [
                     w["end"] for s in current_segments for w in s["words"]
                 ]
+                if len(word_end_timestamps) > 0:
+                    last_speech_timestamp = word_end_timestamps[-1]
                 if not single_timestamp_ending and len(word_end_timestamps) > 0:
                     seek_shift = round(
                         (word_end_timestamps[-1] - time_offset) * FRAMES_PER_SECOND
@@ -381,7 +371,7 @@ def cli():
     # fmt: off
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("audio", nargs="+", type=str, help="audio file(s) to transcribe")
-    parser.add_argument("--model", default="small", choices=available_models, help="name of the Whisper model to use")
+    parser.add_argument("--model", default="tiny", choices=available_models, help="name of the Whisper model to use")
     parser.add_argument("--model_dir", type=str, default=None, help="the path to save model files; uses ~/.cache/whisper by default")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu", help="device to use for PyTorch inference")
     parser.add_argument("--output_dir", "-o", type=str, default=".", help="directory to save the outputs")
@@ -440,7 +430,7 @@ def cli():
         torch.set_num_threads(threads)
     from model.whisper_official import WhisperOfficial
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/whisper_official_005/last.ckpt", model)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/small_lr_002/last.ckpt", model)
 
     writer = get_writer(output_format, output_dir)
     word_options = ["highlight_words", "max_line_count", "max_line_width"]
@@ -457,14 +447,14 @@ def cli():
 
 
 if __name__ == "__main__":
-    cli()
-    # from model.whisper_official import WhisperOfficial
-    # result = transcribe(
-    #         model= WhisperOfficial('tiny').to('cuda'),
-    #         audio='assets/sample_audio/opencpop/2003000102.wav', 
-    #         language='Chinese', 
-    #         temperature=0.0, 
-    #         word_timestamps=True,
-    #         condition_on_previous_text = False,
-    #     )
-    # print(result)
+    # cli()
+    from model.whisper_official import WhisperOfficial
+    result = transcribe(
+            model= WhisperOfficial('tiny').to('cuda'),
+            audio='assets/sample_audio/opencpop/2003000102.wav', 
+            language='Chinese', 
+            temperature=0.0, 
+            word_timestamps=True,
+            condition_on_previous_text = False,
+        )
+    print(result)

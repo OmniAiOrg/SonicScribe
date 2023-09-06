@@ -18,10 +18,12 @@ class Openslr38(BaseReader):
         self.SAMPLE_RATE = int(self.config['SAMPLE_RATE'])
         self.MODEL_SIZE = str(self.config['model_size'])
         self.DISABLE_TQDM = bool(self.config['DISABLE_TQDM'])
+        self.audio_path = self.config['path']
         self.audio_transcript_pair_list = self.get_dataset(train)
+        
 
     def get_dataset(self, train):
-        audio_transcript_pair_list = self.get_audio_file_list(self.config['path'], self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'audio_openslr38')
+        audio_transcript_pair_list = self.get_audio_file_list(self.audio_path, self.TEXT_MAX_LENGTH, self.AUDIO_MAX_LENGTH, self.SAMPLE_RATE, f'audio_openslr38')
         def split_train_test(data, test_ratio, random_seed):
             random.seed(random_seed)
             random.shuffle(data)
@@ -29,7 +31,7 @@ class Openslr38(BaseReader):
             train_data = data[split_index:]
             test_data = data[:split_index]
             return train_data, test_data
-        train_data, test_data = split_train_test(audio_transcript_pair_list, 0.1, 0)
+        train_data, test_data = split_train_test(audio_transcript_pair_list, 0.01, 0)
         return train_data if train else test_data
 
     def get_audio_file_list(self, path, text_max_length=120, audio_max_sample_length=480000, sample_rate=16000, save_name = None):
@@ -125,7 +127,9 @@ if __name__ == '__main__':
     openslr_test = Openslr38(train=False)
     openslr_train = Openslr38()
     print(len(openslr_train), len(openslr_test))
-    data = openslr_train[56]
+    data = openslr_train[0]
     print(data)
+    import shutil
+    shutil.copyfile(data['audio'], 'logs/test.wav')
     # print_data(data['hanzi'], data['pinyin'], data['tone'], data['start'], data['end'])
    

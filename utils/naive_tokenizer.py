@@ -88,6 +88,12 @@ class WhisperTokenizer(Tokenizer):
         self.note: int = self.special_tokens["<|note|>"]
         self.hanzi: int = self.special_tokens["<|hanzi|>"]
         self.pinyin: int = self.special_tokens["<|pinyin|>"]
+        self.hanzi_note_time_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|end|><|startofinference|>", allowed_special="all")
+        self.hanzi_note_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|startofinference|>", allowed_special="all")
+        self.hanzi_note_time_order_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|end|><|order|><|startofinference|>", allowed_special="all")
+        self.hanzi_note_order_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|order|><|startofinference|>", allowed_special="all")
+        self.hanzi_time_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|startofinference|>", allowed_special="all")
+        self.hanzi_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|startofinference|>", allowed_special="all")
 
         langs = tuple(LANGUAGES.keys())
         sot_sequence = [sot]
@@ -117,6 +123,9 @@ class WhisperTokenizer(Tokenizer):
     
     def decode(self, token_ids: List[int], **kwargs) -> str:
         token_ids = [t for t in token_ids if t < self.timestamp_begin or t >= self.notes_begin]
+        if 'include_timestamp' in kwargs and bool(kwargs['include_timestamp']) is True:
+            token_ids = [t for t in token_ids]
+            del kwargs['include_timestamp']
         if 'stop_at' in kwargs:
             stop_at:int = kwargs['stop_at']
             del kwargs['stop_at']
@@ -156,6 +165,7 @@ def get_encoding(name: str = "multilingual"):
         "<|pinyin|>",
         "<|startofinference|>",
         "<|order|>",
+        "<|end|>",
         # For new special tokens, add them before this line
         *[f"<|{i * 0.02:.2f}|>" for i in range(1501)],
     ]
