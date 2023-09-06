@@ -276,8 +276,8 @@ class WhisperOfficialDataCollatorWithPadding:
                 # 4. end (of timestamp)
                 if 'end' in keys:
                     end = data['end']
-                    value = end[i]
-                    data_concated += f'<|{value}|>'
+                    value = float(end[i]) // 0.02
+                    data_concated += f'<|{value * 0.02:.2f}|>'
             data_concated = self.tokenizer.encode(data_concated, allowed_special="all")
             data_builder = list(self.tokenizer.sot_sequence) 
             data_builder += [

@@ -29,6 +29,7 @@ class CerTransform(AbstractTransform):
                     selected_list.append(token)
             if len(selected_list) == 0:
                 selected_list.append(" ")
+            # print(selected_list)
             return selected_list
         if len(s) == 0:
             s = " "
@@ -38,7 +39,7 @@ if __name__ == '__main__':
     cer = jiwer.wer
     ignore_tokens = ['好','!']
     ct = CerTransform(ignore_tokens)
-    ct = CerTransform(keep_tokens=['<|zh1|>', '<|startofinference1|>'])
+    ct = CerTransform(keep_tokens=['<|zh|>', '<|startofinference|>', '<|0.22|>'])
     print(cer(
         ['<|zh|><|transcribe|><|hanzi|><|startofinference|><|0.22|>展示出了如同奇偶像安东尼一样的全面犀利<|endoftext|>'], 
         ['<|zh|><|transcribe|><|hanzi|><|startofinference|>展示出了如同其偶像安东尼一样的全面犀利<|endoftext|>'], 

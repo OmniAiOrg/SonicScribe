@@ -35,6 +35,7 @@ TODO:
     - example: <|singing|> <|zh|> <|male|> <|1|> ming <|B3|> <|2|> tian <|A4|> <|3|> hui <|A5|>  <|eot|>
 - [ ] ~~The previous method is actually encoder-decoder architecture. As now decoder only architecture had already been proved as the best architecture, maybe it could also been achieved in decoder only architecture? No! On the other side, encoder-decoder architecture has its advantage in attention look back. like time alignment in audio, and maybe image alignment in figure, encoder works really well.~~
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
+- [ ] Better Timestamp loss which can evaluate the time with a Guass loss
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.
 - [ ] Link this ASR with TTS like diffsinger.

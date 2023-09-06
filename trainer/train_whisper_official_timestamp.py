@@ -25,17 +25,17 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "whisper_official_timestamp_007"
+train_id = "timestamp_006"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
 # resume_checkpoint = "whisper_official_005/checkpoint-002-0.00.ckpt"
-resume_checkpoint = "whisper_official_timestamp_006/last-v1.ckpt"
+resume_checkpoint = "small_lr_003/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 0.001
+    learning_rate = 0.0001
     weight_decay = 0.01
     adam_epsilon = 1e-7
     warmup_steps = 2
@@ -118,20 +118,20 @@ def naive_dataloader(dataset, train):
                 )
 
 def get_dataloader(train=True) -> DataLoader:
-    dataset_a = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note'])
-    dataset_b = OpenCpop(train=train, key_filter=['audio', 'hanzi']) # hanzi only
-    dataset_c = OpenCpop(train=train, key_filter=['audio', 'note']) # note only
+    # dataset_a = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note'])
+    # dataset_b = OpenCpop(train=train, key_filter=['audio', 'hanzi']) # hanzi only
+    # dataset_c = OpenCpop(train=train, key_filter=['audio', 'note']) # note only
     dataset_d = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'end'])
-    dataset_e = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'end']) # hanzi only
-    dataset_f = OpenCpop(train=train, key_filter=['audio', 'note', 'end']) # note only
+    # dataset_e = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'end']) # hanzi only
+    # dataset_f = OpenCpop(train=train, key_filter=['audio', 'note', 'end']) # note only
     weighted_dataset = WeightedDataset([
-        (dataset_a, 1, 'order'), (dataset_a, 1), 
-         (dataset_b, 1), (dataset_b, 1, 'order'), 
-         (dataset_c, 1), (dataset_c, 1, 'order'), 
-         (dataset_d, 1),
+        # (dataset_a, 1, 'order'), (dataset_a, 1), 
+        #  (dataset_b, 1), (dataset_b, 1, 'order'), 
+        #  (dataset_c, 1), (dataset_c, 1, 'order'), 
+        #  (dataset_d, 1),
          (dataset_d, 1, 'order'), 
-         (dataset_e, 1),(dataset_e, 1, 'order'), 
-         (dataset_f, 1), (dataset_f, 1, 'order')
+        #  (dataset_e, 1),(dataset_e, 1, 'order'), 
+        #  (dataset_f, 1), (dataset_f, 1, 'order')
          ])
     dataloader = naive_dataloader(weighted_dataset, train)
     return dataloader

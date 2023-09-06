@@ -52,6 +52,9 @@ class WhisperOfficialLightling(LightningModule):
                 note_wer_score = self.wer(compact_label, compact_pred, note_ct, note_ct)
                 return hanzi_wer_score, note_wer_score, timestamp_wer_score
         self.wer_compact = wer_compact
+        
+        def timestamp_loss(out_logits:dict, batch:WhisperOfficialBatch):
+            pass
 
         self.cfg = cfg
         self.learning_rate = self.cfg.learning_rate
@@ -120,7 +123,7 @@ class WhisperOfficialLightling(LightningModule):
         #     num_training_steps=10
         # )
         
-        torch_lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.98)
+        torch_lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.93)
 
         self.scheduler = torch_lr_scheduler
 
