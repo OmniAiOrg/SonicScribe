@@ -72,7 +72,8 @@ def save_to_tiktoken(single_chinese:dict, multi_chinese:dict, to_name:str, from_
 
 if __name__ == '__main__':
     single_chinese, multi_chinese = get_single_token_chinese_encoding()
-    fix_single_chinese(single_chinese)
+    # fix_single_chinese(single_chinese)
+    fix_multi_chinese(single_chinese) # instead of traditional to simplified, remove all chinese
     fix_multi_chinese(multi_chinese)
     print('single_chinese', '|'.join(single_chinese.values()))
     print('multi_chinese', '|'.join(multi_chinese.values()))

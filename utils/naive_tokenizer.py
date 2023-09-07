@@ -88,6 +88,7 @@ class WhisperTokenizer(Tokenizer):
         self.note: int = self.special_tokens["<|note|>"]
         self.hanzi: int = self.special_tokens["<|hanzi|>"]
         self.pinyin: int = self.special_tokens["<|pinyin|>"]
+        self.end: int = self.special_tokens["<|end|>"]
         self.hanzi_note_time_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|end|><|startofinference|>", allowed_special="all")
         self.hanzi_note_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|startofinference|>", allowed_special="all")
         self.hanzi_note_time_order_sequence: list[int] = self.encode("<|startoftranscript|><|zh|><|transcribe|><|hanzi|><|note|><|end|><|order|><|startofinference|>", allowed_special="all")

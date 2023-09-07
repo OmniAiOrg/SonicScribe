@@ -430,7 +430,7 @@ def cli():
         torch.set_num_threads(threads)
     from model.whisper_official import WhisperOfficial
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/small_lr_002/last.ckpt", model)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/timestamp_006/checkpoint-006-0.63.ckpt", model)
 
     writer = get_writer(output_format, output_dir)
     word_options = ["highlight_words", "max_line_count", "max_line_width"]

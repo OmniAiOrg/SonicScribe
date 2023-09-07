@@ -433,14 +433,6 @@ class SuppressBlank(LogitFilter):
         if tokens.shape[1] == self.sample_begin:
             logits[:, self.tokenizer.encode(" ") + [self.tokenizer.eot]] = -np.inf
 
-class SuppressPrevTokens(LogitFilter):
-    def __init__(self, tokenizer: WhisperTokenizer):
-        self.tokenizer = tokenizer
-
-    def apply(self, logits: Tensor, tokens: Tensor):
-        logits[:, tokens[0]] = -np.inf
-
-
 class SuppressTokens(LogitFilter):
     def __init__(self, suppress_tokens: Sequence[int]):
         self.suppress_tokens = list(suppress_tokens)
@@ -469,34 +461,36 @@ class ApplyTimestampRules(LogitFilter):
         for k in range(tokens.shape[0]):
             sampled_tokens = tokens[k, self.sample_begin :]
             seq = [t for t in sampled_tokens.tolist()]
-            last_was_timestamp = (
-                len(seq) >= 1 and seq[-1] >= self.tokenizer.timestamp_begin
-            )
-            penultimate_was_timestamp = (
-                len(seq) < 2 or seq[-2] >= self.tokenizer.timestamp_begin
-            )
+            # last_was_timestamp = (
+            #     len(seq) >= 1 and seq[-1] >= self.tokenizer.timestamp_begin
+            # )
+            # penultimate_was_timestamp = (
+            #     len(seq) < 2 or seq[-2] >= self.tokenizer.timestamp_begin
+            # )
 
-            if last_was_timestamp:
-                if penultimate_was_timestamp:  # has to be non-timestamp
-                    logits[k, self.tokenizer.timestamp_begin :] = -np.inf
-                else:  # cannot be normal text tokens
-                    logits[k, : self.tokenizer.eot] = -np.inf
+            # if last_was_timestamp:
+            #     if penultimate_was_timestamp:  # has to be non-timestamp
+            #         logits[k, self.tokenizer.timestamp_begin :] = -np.inf
+            #     else:  # cannot be normal text tokens
+            #         logits[k, : self.tokenizer.eot] = -np.inf
 
             timestamps = sampled_tokens[
                 sampled_tokens.ge(self.tokenizer.timestamp_begin)
             ]
+            # print("timestamps", self.tokenizer.decode(timestamps))
             if timestamps.numel() > 0:
                 # timestamps shouldn't decrease; forbid timestamp tokens smaller than the last
                 # also force each segment to have a nonzero length, to prevent infinite looping
-                if last_was_timestamp and not penultimate_was_timestamp:
-                    timestamp_last = timestamps[-1]
-                else:
-                    timestamp_last = timestamps[-1] + 1
+                # if last_was_timestamp and not penultimate_was_timestamp:
+                #     timestamp_last = timestamps[-1]
+                # else:
+                #     timestamp_last = timestamps[-1] + 1
+                timestamp_last = timestamps[-1]
                 logits[k, self.tokenizer.timestamp_begin : timestamp_last] = -np.inf
 
         if tokens.shape[1] == self.sample_begin:
             # suppress generating non-timestamp tokens at the beginning
-            logits[:, : self.tokenizer.timestamp_begin] = -np.inf
+            # logits[:, : self.tokenizer.timestamp_begin] = -np.inf
 
             # apply the `max_initial_timestamp` option
             if self.max_initial_timestamp_index is not None:
@@ -506,14 +500,14 @@ class ApplyTimestampRules(LogitFilter):
                 logits[:, last_allowed + 1 :] = -np.inf
 
         # if sum of probability over timestamps is above any other token, sample timestamp
-        # logprobs = F.log_softmax(logits.float(), dim=-1)
-        # for k in range(tokens.shape[0]):
-        #     timestamp_logprob = logprobs[k, self.tokenizer.timestamp_begin :].logsumexp(
-        #         dim=-1
-        #     )
-        #     max_text_token_logprob = logprobs[k, : self.tokenizer.timestamp_begin].max()
-        #     if timestamp_logprob > max_text_token_logprob:
-        #         logits[k, : self.tokenizer.timestamp_begin] = -np.inf
+        logprobs = F.log_softmax(logits.float(), dim=-1)
+        for k in range(tokens.shape[0]):
+            timestamp_logprob = logprobs[k, self.tokenizer.timestamp_begin :].logsumexp(
+                dim=-1
+            )
+            max_text_token_logprob = logprobs[k, : self.tokenizer.timestamp_begin].max()
+            if timestamp_logprob > max_text_token_logprob:
+                logits[k, : self.tokenizer.timestamp_begin] = -np.inf
 
 
 class DecodingTask:
@@ -566,7 +560,7 @@ class DecodingTask:
         if self.options.suppress_tokens:
             self.logit_filters.append(SuppressTokens(self._get_suppress_tokens()))
         
-        self.logit_filters.append(SuppressTokens([self.tokenizer.soi]))
+        self.logit_filters.append(SuppressTokens([self.tokenizer.soi, self.tokenizer.order, self.tokenizer.hanzi, self.tokenizer.note, self.tokenizer.end]))
         # self.logit_filters.append(SuppressPrevTokens(self.tokenizer))
         if not options.without_timestamps:
             precision = CHUNK_LENGTH / model.dims.n_audio_ctx  # usually 0.02 seconds
@@ -845,11 +839,11 @@ def decode(
 if __name__ == "__main__":
     from torch.utils.data import ConcatDataset, DataLoader
     from model.whisper_official import WhisperOfficial
-    device='cpu'
-    oc_test = Openslr38(train=True, key_filter=['audio', 'hanzi'])
+    device='cuda'
+    oc_test = OpenCpop(train=True, key_filter=['audio', 'hanzi', 'note', 'end'])
     collate_fn = WhisperOfficialDataCollatorWithPadding()
     weighted_dataset = WeightedDataset(
-        [(oc_test, 1)])
+        [(oc_test, 1, 'order')])
     loader = DataLoader(weighted_dataset,
                         batch_size=1,
                         shuffle=False,
@@ -860,17 +854,17 @@ if __name__ == "__main__":
                         )
     
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/small_lr_002/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/timestamp_006/checkpoint-006-0.63.ckpt", model, True)
 
     options = DecodingOptions(
         language='zh',
-        sample_len=20,
+        sample_len=50,
         fp16=False if device=='cpu' else True,
-        beam_size=50,
-        patience=30,
-        without_timestamps=True,
-        temperature=0.4,
-        # prompt='塞翁失马，得之焉福'
+        beam_size=5,
+        patience=3,
+        without_timestamps=False,
+        temperature=0.2,
+        prompt='干手厅宰沃发端得知减',
     )
     for b in loader:
         b: WhisperOfficialBatch = b
