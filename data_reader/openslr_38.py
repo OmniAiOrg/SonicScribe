@@ -115,21 +115,25 @@ class Openslr38(BaseReader):
         }
         if self.key_filter == None:
             return output
+        elif 'waveform' in self.key_filter:
+            output['waveform'] = self.get_waveform(output['audio'], True)
         return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':
+    import torchaudio
     def print_data(hanzi_words, pinyin, tone, dur_start, dur_end):
         assert len(hanzi_words) == len(pinyin) and len(tone) == len(dur_start) and \
             len(dur_end) == len(dur_start) and len(hanzi_words) == len(tone)
         for i in range(len(hanzi_words)):
             print(f'{hanzi_words[i]}:{pinyin[i]:<6}[{tone[i]}] ({dur_start[i]}->{dur_end[i]})')
     
-    openslr_test = Openslr38(train=False)
-    openslr_train = Openslr38()
+    openslr_test = Openslr38(train=False, key_filter=['audio', 'hanzi', 'waveform'])
+    openslr_train = Openslr38(key_filter=['audio', 'hanzi', 'waveform'])
     print(len(openslr_train), len(openslr_test))
-    data = openslr_train[0]
+    data = openslr_train[4]
     print(data)
     import shutil
     shutil.copyfile(data['audio'], 'logs/test.wav')
+    torchaudio.save('logs/test_vad.wav', data['waveform'], openslr_test.SAMPLE_RATE)
     # print_data(data['hanzi'], data['pinyin'], data['tone'], data['start'], data['end'])
    

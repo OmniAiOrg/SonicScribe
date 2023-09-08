@@ -855,7 +855,7 @@ if __name__ == "__main__":
         sample_len=20,
         fp16=False if device=='cpu' else True,
         beam_size=50,
-        # without_timestamps=True,
+        without_timestamps=True,
         temperature=0.4
     )
     for b in loader:

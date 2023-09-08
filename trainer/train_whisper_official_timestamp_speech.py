@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from data_reader.openslr_38 import Openslr38
 from data_reader.openslr_47 import Openslr47
 from data_reader.openslr_68 import Openslr68
 from model.sonic_lightling import SonicLightling
@@ -17,7 +18,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from utils.model_weight_initializer import initialize_sonic_scriber_from_whisper, initialize_whisper_official_from_checkpoint, initialize_whisper_official_from_whisper
-from utils.whisper_dataloader import OpenCpopDataCollatorWithPadding, WrappedDataset
+from utils.whisper_dataloader import SpeechDataCollatorWithPadding, WrappedDataset
 
 print('torch=', torch.__version__, 'torch_lightling=', pl.__version__)
 # 1. training settings
@@ -32,30 +33,30 @@ check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
 # resume_checkpoint = "whisper_official_005/checkpoint-002-0.00.ckpt"
-resume_checkpoint = "small_lr_003/last.ckpt"
+resume_checkpoint = "timestamp_008/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 0.0001
-    weight_decay = 0.01
+    learning_rate = 0.00001
+    weight_decay = 0.001
     adam_epsilon = 1e-7
-    warmup_steps = 2
-    batch_size = 6
+    warmup_steps = 0
+    batch_size = 3
     precision = '16-mixed' # 32 for single, 16 for half (faster)
-    num_worker = 8 # <= batch_size, <= cpu cores, larger is better
+    num_worker = 10 # <= batch_size, <= cpu cores, larger is better
     pin_memory=True
-    num_train_epochs = 1
-    gradient_accumulation_steps = 4
+    num_train_epochs = 50
+    gradient_accumulation_steps = 8
     sample_rate = SAMPLE_RATE
-    limit_val_batches = 1
-    overfit_batches = 0.1 # 0 by default. Set to 0.005 for overfit sanity check
+    overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
-    val_check_interval = None # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
+    limit_val_batches = 0.02
+    val_check_interval = 2000 # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
     
 # 2. Trainer preparation
-
+cfg = Config()
 Path(log_output_dir).mkdir(exist_ok=True)
 Path(check_output_dir).mkdir(exist_ok=True)
 
@@ -72,18 +73,17 @@ checkpoint_callback = ModelCheckpoint(
     monitor = 'val/loss',
     auto_insert_metric_name=False,
     save_last=True,
-    every_n_train_steps=1000
+    every_n_train_steps=cfg.val_check_interval if cfg.val_check_interval is not None else 1000
 )
 
 latest_ckpt = Path(f"{check_output_dir}/checkpoint/{resume_checkpoint}")
-if latest_ckpt.is_file():
+if latest_ckpt.is_file() and not cfg.overfit_batches>0:
     ckpt_path = latest_ckpt
 else:
     ckpt_path = None
     
 callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
 
-cfg = Config()
 trainer = Trainer(
     accelerator=DEVICE,
     logger=tflogger,
@@ -91,18 +91,23 @@ trainer = Trainer(
     precision=cfg.precision,
     max_epochs=cfg.num_train_epochs,
     accumulate_grad_batches=cfg.gradient_accumulation_steps,
-    limit_val_batches=cfg.limit_val_batches,
     overfit_batches=cfg.overfit_batches,
+    limit_val_batches=cfg.limit_val_batches,
     log_every_n_steps = cfg.gradient_accumulation_steps * cfg.batch_size * cfg.log_every_n_steps,
     val_check_interval = cfg.val_check_interval,
     num_sanity_val_steps = cfg.num_sanity_val_steps,
     enable_progress_bar = cfg.enable_progress_bar,
     profiler="simple" if cfg.overfit_batches > 0 else None
     )
-collect_fn = OpenCpopDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker)
+collect_fn = SpeechDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker)
 model = WhisperOfficial('tiny')
 if ckpt_path == None:
     initialize_whisper_official_from_whisper(model)
+    log_path = log_output_dir+'/'+train_name+'/'+train_id
+    print('clean log path', log_path)
+    for item in Path(log_path).glob('*'):
+        if item.is_file():
+            item.unlink()  # rm file
 else:
     initialize_whisper_official_from_checkpoint(ckpt_path, model)
 model = WhisperOfficialLightling(cfg, model).to(DEVICE)
@@ -114,18 +119,27 @@ def naive_dataloader(dataset, train):
                 shuffle=True if train and cfg.overfit_batches==0 else False,
                 collate_fn=collect_fn,
                 num_workers = cfg.num_worker,
-                pin_memory=True,
-                pin_memory_device = DEVICE,
+                pin_memory=cfg.pin_memory,
+                pin_memory_device = DEVICE if cfg.pin_memory else None,
                 persistent_workers=True
                 )
 
 def get_dataloader(train=True) -> DataLoader:
-    openCpop = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'start', 'end'])
+    dataset_a = Openslr38(train=train, key_filter=['audio', 'hanzi'])
+    dataset_b = Openslr33(train=train, key_filter=['audio', 'hanzi'])
+    dataset_c = Openslr47(train=train, key_filter=['audio', 'hanzi'])
+    dataset_d = Openslr68(train=train, key_filter=['audio', 'hanzi'])
     wrapped_dataset = WrappedDataset([
-        (openCpop, 1, ['order', 'pad']),
-        (openCpop, 1, ['pad'])
+        (dataset_a, 1, ['pad']),
+        (dataset_b, 1, ['pad']),
+        (dataset_c, 1, ['pad']),
+        (dataset_d, 1, ['pad']),
+        # (dataset_a, 1, ['notimestamp','pad']),
+        # (dataset_b, 1, ['notimestamp','pad']),
+        # (dataset_c, 1, ['notimestamp','pad']),
+        # (dataset_d, 1, ['notimestamp','pad']),
         ])
-        
+    print('wrapped_dataset', train, len(wrapped_dataset))
     dataloader = naive_dataloader(wrapped_dataset, train)
     return dataloader
     
@@ -136,6 +150,6 @@ val_dataloader = get_dataloader(False)
 trainer.fit(
     model, 
     train_dataloader, 
-    val_dataloader,
-    # ckpt_path = ckpt_path
+    val_dataloader, 
+    ckpt_path = ckpt_path
     )

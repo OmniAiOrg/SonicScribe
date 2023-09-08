@@ -14,10 +14,9 @@ import pickle
 from typing import Dict, List, Optional, Tuple
 import glob
 # from utils.general_dataloader import SonicData
-from utils.pre_tokenizers import *
+# from utils.pre_tokenizers import *
 from utils.whisper_duration_auto_tag import WhisperDurationTagger
 from pypinyin import pinyin, lazy_pinyin, Style
-
 class Openslr33(BaseReader):
     def __init__(self, train=True, key_filter=None) -> None:
         super().__init__(train, key_filter)
@@ -134,6 +133,8 @@ class Openslr33(BaseReader):
         }
         if self.key_filter == None:
             return output
+        elif 'waveform' in self.key_filter:
+            output['waveform'] = self.get_waveform(output['audio'], True)
         return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':

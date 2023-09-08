@@ -12,16 +12,17 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import jiwer
 
 from utils.naive_tokenizer import WhisperTokenizer
+from utils.whisper_dataloader import OpenCpopDataCollatorWithPadding, WrappedDataset
 class WhisperOfficialLightling(LightningModule):
     def __init__(self, cfg, model:WhisperOfficial) -> None:
         super().__init__()
         self.model = model
         self.tokenizer: WhisperTokenizer = self.model.tokenizer
-        pad_label = self.tokenizer.pad
+        self.pad_label = self.tokenizer.pad
         self.dataset_keys = dataset_keys
         self.batch_size = cfg.batch_size
         
-        self.ce_loss = nn.CrossEntropyLoss(ignore_index=pad_label)
+        self.ce_loss = nn.CrossEntropyLoss(ignore_index=self.pad_label)
         
         self.wer = jiwer.wer
         hanzi_ct = CerTransform(list(self.tokenizer.special_tokens.keys()))
@@ -52,9 +53,6 @@ class WhisperOfficialLightling(LightningModule):
                 note_wer_score = self.wer(compact_label, compact_pred, note_ct, note_ct)
                 return hanzi_wer_score, note_wer_score, timestamp_wer_score
         self.wer_compact = wer_compact
-        
-        def timestamp_loss(out_logits:dict, batch:WhisperOfficialBatch):
-            pass
 
         self.cfg = cfg
         self.learning_rate = self.cfg.learning_rate
@@ -66,7 +64,14 @@ class WhisperOfficialLightling(LightningModule):
     
     def calculate_loss(self, out_logits:Tensor, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = torch.transpose(out_logits, 1, 2)
-        # print(out_logits.shape, batch.data_label.shape)
+        # ignore labels before <|startoftranscript|> on loss calculation
+        batch_size, l = batch.data_label.size()
+        for i in range(batch_size):
+            unique_value_index = (batch.data_label[i] == self.tokenizer.sot).nonzero()
+            if unique_value_index.numel() > 0 :
+                unique_value_index = unique_value_index.item()
+                batch.data_label[i, :unique_value_index] = self.tokenizer.pad
+        # print(self.tokenizer.decode(batch.data_label[0]), '\n\n\n')
         out_loss = self.ce_loss(out_logits, batch.data_label)
         return out_loss
     
@@ -155,11 +160,15 @@ if __name__ == '__main__':
     
     from data_reader.opencpop import OpenCpop
     from torch.utils.data import DataLoader
-    dataset_a = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note'])
-    loader = DataLoader(dataset_a, 
+    openCpop = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'start', 'end'])
+    wrapped_dataset = WrappedDataset([
+        (openCpop, 1, ['order', 'notimestamp']),
+        (openCpop, 1, ['order', 'pad'])
+        ])
+    loader = DataLoader(wrapped_dataset, 
                             batch_size=cfg.batch_size,
                             shuffle=True,
-                            collate_fn=WhisperOfficialDataCollatorWithPadding(),
+                            collate_fn=OpenCpopDataCollatorWithPadding(),
                             pin_memory=True,
                             pin_memory_device = DEVICE
                           )

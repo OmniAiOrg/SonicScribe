@@ -36,9 +36,9 @@ TODO:
 - [ ] ~~The previous method is actually encoder-decoder architecture. As now decoder only architecture had already been proved as the best architecture, maybe it could also been achieved in decoder only architecture? No! On the other side, encoder-decoder architecture has its advantage in attention look back. like time alignment in audio, and maybe image alignment in figure, encoder works really well.~~
 - [ ] Modify the model with single embedding input which concats the embeddings, which could be faster and more accurate
 - [ ] Better Timestamp loss which can evaluate the time with a Guass loss
-- [ ] Remove all single token hanzi from tiktoken
+- [x] Remove all single token hanzi from tiktoken
 - [ ] Data augmentation: add silent before opencpop
-- [ ] Data augmentation: concat multiple audio with silent, then add timestamp according to audio
+- [x] Data augmentation: concat multiple audio with silent, then add timestamp according to audio
 - [ ] Create an inference model that can be easily used with command line and HTTP/web.
 - [ ] Generate multiple types of export formats.
 - [ ] Link this ASR with TTS like diffsinger.

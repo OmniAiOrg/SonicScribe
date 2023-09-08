@@ -16,11 +16,11 @@ import torchaudio.transforms as at
 from data_reader.base_reader import BaseReader
 from model.chinese_token_embeddings import ChineseTokenEmbedding
 from model.pinyin_token_embeddings import PinyinTokenEmbedding
-from utils.pre_tokenizers import *
+# from utils.pre_tokenizers import *
 from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler, BatchSampler
-from pytorch_lightning.utilities.combined_loader import CombinedLoader
 import whisper
-from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
+from utils.load_checkpoint import get_config
+# from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
 from utils.naive_tokenizer import get_tokenizer
 
 dataset_keys = [
