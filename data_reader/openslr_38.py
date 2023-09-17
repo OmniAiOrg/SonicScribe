@@ -116,7 +116,7 @@ class Openslr38(BaseReader):
         if self.key_filter == None:
             return output
         elif 'waveform' in self.key_filter:
-            output['waveform'] = self.get_waveform(output['audio'], True)
+            output['waveform'] = self.get_waveform(output['audio'], False)
         return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':

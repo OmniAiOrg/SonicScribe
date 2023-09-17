@@ -134,7 +134,7 @@ class Openslr33(BaseReader):
         if self.key_filter == None:
             return output
         elif 'waveform' in self.key_filter:
-            output['waveform'] = self.get_waveform(output['audio'], True)
+            output['waveform'] = self.get_waveform(output['audio'], False)
         return {key: value for key, value in output.items() if key in self.key_filter}
 
 if __name__ == '__main__':
@@ -144,8 +144,8 @@ if __name__ == '__main__':
         for i in range(len(hanzi_words)):
             print(f'{hanzi_words[i]}:{pinyin[i]:<6}[{tone[i]}] ({dur_start[i]}->{dur_end[i]})')
     
-    openslr_33_test = Openslr33(train=False)
-    openslr_33_train = Openslr33()
+    openslr_33_test = Openslr33(train=False, key_filter=['audio', 'hanzi', 'waveform', 'pinyin', 'tone', 'start', 'end'])
+    openslr_33_train = Openslr33(key_filter=['audio', 'hanzi', 'waveform', 'pinyin', 'tone', 'start', 'end'])
     print(len(openslr_33_train), len(openslr_33_test))
     data = openslr_33_train[56]
     print(data['audio'])

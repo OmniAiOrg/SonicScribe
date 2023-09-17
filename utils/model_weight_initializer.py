@@ -44,6 +44,7 @@ def initialize_whisper_official_from_whisper(model: WhisperOfficial):
     model.load_state_dict(new_checkpoint, strict = False)
     
 def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: WhisperOfficial, strict=False):
+    print("initialize_whisper_official_from_checkpoint", checkpoint_file)
     with open(checkpoint_file, "rb") as fp:
         checkpoint = torch.load(fp, map_location='cpu')
     new_checkpoint = {}
@@ -58,6 +59,8 @@ def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: Whis
             padded_v = F.pad(v, (0,0,0, p.shape[0] - v.shape[0]), mode='constant', value=0)
             print(f'v={v.shape} padded_v={padded_v.shape}')
             new_checkpoint[k] = padded_v
+        elif 'kl_conv_loss' in k:
+            continue
         else:
             new_checkpoint[k] = v
     model.load_state_dict(new_checkpoint, strict = True)

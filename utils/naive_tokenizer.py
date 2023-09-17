@@ -116,15 +116,23 @@ class WhisperTokenizer(Tokenizer):
         return self.special_tokens["<|startofinference|>"]
     
     @cached_property
-    def notes_begin(self) -> int:
-        return self.special_tokens["<|A#3/Bb3|>"]
-    
-    @cached_property
     def order(self) -> int:
         return self.special_tokens["<|order|>"]
     
+    @cached_property
+    def timestamp_end(self) -> int:
+        return self.special_tokens[f"<|{1500 * 0.02:.2f}|>"]
+            
     def get_all_notes(self) -> list[str]:
         return [f'<|{i}|>' for i in notes]
+    
+    @cached_property
+    def notes_begin(self) -> int:
+        return self.special_tokens['<|A#3/Bb3|>']
+    
+    @cached_property
+    def notes_end(self) -> int:
+        return self.special_tokens['<|rest|>']
     
     def get_all_timestamps(self) -> list[str]:
         return [f"<|{i * 0.02:.2f}|>" for i in range(1501)]
@@ -245,3 +253,9 @@ if __name__ == '__main__':
     
     print(whisper_tokenizer.encode('<|SL|>', allowed_special="all"))
     print(whisper_tokenizer.encoding.encode_single_token('<|SL|>'))
+    
+    print(whisper_tokenizer.decode([50361,   220,  4820,   253,  2129,   245,  7437,   250,  2523,   101,
+          1486,   239,  2129,   239, 11957,   107,  1514,   226,  8501,   229,
+          1530,   244, 50258, 50260, 50359]))
+    
+    print(whisper_tokenizer.notes_begin, whisper_tokenizer.notes_end)

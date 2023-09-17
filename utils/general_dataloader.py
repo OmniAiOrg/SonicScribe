@@ -20,7 +20,7 @@ from model.pinyin_token_embeddings import PinyinTokenEmbedding
 from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler, BatchSampler
 import whisper
 from utils.load_checkpoint import get_config
-# from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
+from utils.pre_tokenizers import all_tokenizers, word_tokenizer, pinyin_tokenizer, note_tokenizer, tone_tokenizer, slur_tokenizer, duration_tokenizer
 from utils.naive_tokenizer import get_tokenizer
 
 dataset_keys = [
@@ -60,7 +60,7 @@ def get_field_names(cls: type, exclude: List[str] = []) -> List[str]:
 
 
 def sonic_batch_to_shape(sonic_batch: SonicBatch):
-    field_names = [field.name for field in fields(SonicBatch)]
+    field_names = [field.name for field in fields(SonicBatch) if field.name != 'waveform']
     sonic_batch_shape = {}
     for field_name in field_names:
         value = getattr(sonic_batch, field_name)
@@ -201,10 +201,11 @@ class WhisperOfficialBatch:
     mel: Optional[Tensor]
     data: Optional[Tensor]
     data_label: Optional[Tensor]
+    waveform: Optional[list[Tensor]] = None
 
 
 def whisper_official_batch_to_shape(sonic_batch: WhisperOfficialBatch):
-    field_names = [field.name for field in fields(WhisperOfficialBatch)]
+    field_names = [field.name for field in fields(WhisperOfficialBatch) if field.name != 'waveform']
     sonic_batch_shape = {}
     for field_name in field_names:
         value = getattr(sonic_batch, field_name)

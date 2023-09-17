@@ -10,6 +10,7 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 import jiwer
+from utils.loss.smooth_kl_conv_loss import SmoothKLConvLoss
 
 from utils.naive_tokenizer import WhisperTokenizer
 from utils.whisper_dataloader import OpenCpopDataCollatorWithPadding, WrappedDataset
@@ -23,6 +24,7 @@ class WhisperOfficialLightling(LightningModule):
         self.batch_size = cfg.batch_size
         
         self.ce_loss = nn.CrossEntropyLoss(ignore_index=self.pad_label)
+        self.kl_conv_loss = SmoothKLConvLoss(kernel=[1.,2.,3.,4.,5.,6.,7.,8.,9.,8.,7.,6.,5.,4.,3.,2.,1.])
         
         self.wer = jiwer.wer
         hanzi_ct = CerTransform(list(self.tokenizer.special_tokens.keys()))
@@ -54,13 +56,32 @@ class WhisperOfficialLightling(LightningModule):
                 return hanzi_wer_score, note_wer_score, timestamp_wer_score
         self.wer_compact = wer_compact
 
-        self.cfg = cfg
+        self.cfg:Config = cfg
         self.learning_rate = self.cfg.learning_rate
         # self.model = torch.compile(self.model) # pytorch 2.0 surpport optimize model
     
     
     def forward(self, x:WhisperOfficialBatch):
         return self.model.forward(x.mel, x.data)
+    
+    def calculate_loss_with_time(self, out_logits:Tensor, batch:WhisperOfficialBatch, batch_id:int):
+        batch_label = batch.data_label.clone()
+        # 对于timestamps，loss需要使用高斯分布进行更好的拟合
+        time_loss = self.kl_conv_loss(out_logits, batch_label, self.tokenizer.timestamp_begin, self.tokenizer.timestamp_end)
+        out_logits_transposed = torch.transpose(out_logits, 1, 2) # [N, C, d]
+        # ignore labels before <|startoftranscript|> on loss calculation
+        batch_size, l = batch_label.size()
+        for i in range(batch_size):
+            # 1. 仅仅计算sot之后的loss
+            unique_value_index = (batch_label[i] == self.tokenizer.sot).nonzero()
+            if unique_value_index.numel() > 0 :
+                unique_value_index = unique_value_index.item()
+                batch_label[i, :unique_value_index] = self.pad_label
+        # 2. word loss 可以忽略timestamps
+        # timestamp_mask = batch_label.ge(self.tokenizer.timestamp_begin) # [N, d]
+        # batch_label[timestamp_mask]  = self.pad_label
+        word_loss = self.ce_loss(out_logits_transposed, batch_label)
+        return word_loss, time_loss * 0.1
     
     def calculate_loss(self, out_logits:Tensor, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = torch.transpose(out_logits, 1, 2)
@@ -90,9 +111,9 @@ class WhisperOfficialLightling(LightningModule):
         loss = self.calculate_loss(out_logits, batch, batch_id)
         hanzi_wer, note_wer, timestamp_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
         self.log(f'val/loss', loss, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'val/hanzi_wer', hanzi_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'val/note_wer', note_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'val/time_wer', timestamp_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'wer/hanzi_wer', hanzi_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'wer/note_wer', note_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.log(f'wer/time_wer', timestamp_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss, hanzi_wer
         
     def predict_step(self, batch, batch_id):

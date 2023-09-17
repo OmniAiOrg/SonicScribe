@@ -26,29 +26,28 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "timestamp_008"
+train_id = "opencpop_002"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-# resume_checkpoint = "whisper_official_005/checkpoint-002-0.00.ckpt"
-resume_checkpoint = "small_lr_003/last.ckpt"
+resume_checkpoint = "timestamp_3/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 0.0001
-    weight_decay = 0.01
+    learning_rate = 5e-5 #5.281682335805869e-05
+    weight_decay = 5e-3
     adam_epsilon = 1e-7
     warmup_steps = 2
     batch_size = 6
     precision = '16-mixed' # 32 for single, 16 for half (faster)
-    num_worker = 8 # <= batch_size, <= cpu cores, larger is better
+    num_worker = 10 # <= batch_size, <= cpu cores, larger is better
     pin_memory=True
-    num_train_epochs = 1
+    num_train_epochs = 50
     gradient_accumulation_steps = 4
     sample_rate = SAMPLE_RATE
-    limit_val_batches = 1
-    overfit_batches = 0.1 # 0 by default. Set to 0.005 for overfit sanity check
+    limit_val_batches = None
+    overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
     val_check_interval = None # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
@@ -116,14 +115,15 @@ def naive_dataloader(dataset, train):
                 num_workers = cfg.num_worker,
                 pin_memory=True,
                 pin_memory_device = DEVICE,
-                persistent_workers=True
+                persistent_workers=True,
+                drop_last=True
                 )
 
 def get_dataloader(train=True) -> DataLoader:
-    openCpop = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'start', 'end'])
+    openCpop = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
     wrapped_dataset = WrappedDataset([
         (openCpop, 1, ['order', 'pad']),
-        (openCpop, 1, ['pad'])
+        # (openCpop, 1, ['pad'])
         ])
         
     dataloader = naive_dataloader(wrapped_dataset, train)

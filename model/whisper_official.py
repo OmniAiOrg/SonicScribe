@@ -22,8 +22,9 @@ class WhisperOfficial(Whisper):
         dims.n_vocab = n_vocab
         return dims
 
-    def __init__(self, model='tiny'):
+    def __init__(self, model='tiny', stop_grad_on_encoder=False):
         self.model_size = model
+        self.stop_grad_on_encoder = stop_grad_on_encoder
         dims = self.get_model_dims(model)
         super().__init__(dims)
         self.decoder = TextDecoder(
@@ -33,10 +34,23 @@ class WhisperOfficial(Whisper):
             self.dims.n_text_head,
             self.dims.n_text_layer,
         )
+        if stop_grad_on_encoder:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
         
     @property
     def is_multilingual(self):
         return True
+    
+    def forward(
+        self, mel: torch.Tensor, tokens: torch.Tensor
+    ) -> Dict[str, torch.Tensor]:
+        if self.stop_grad_on_encoder:
+            with torch.no_grad():
+                audio_encoded = self.encoder(mel)
+            return self.decoder(tokens, audio_encoded)
+        else:
+            return self.decoder(tokens, self.encoder(mel))
 
 if __name__ == '__main__':
     from torch.utils.data import DataLoader

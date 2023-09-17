@@ -10,10 +10,13 @@ from torch.distributions import Categorical
 from whisper.audio import CHUNK_LENGTH
 from data_reader.opencpop import OpenCpop
 from data_reader.openslr_38 import Openslr38
+from data_reader.openslr_68 import Openslr68
 from utils.general_dataloader import WeightedDataset, WhisperOfficialBatch, WhisperOfficialDataCollatorWithPadding
 from utils.model_weight_initializer import initialize_whisper_official_from_checkpoint
 from utils.naive_tokenizer import get_tokenizer, WhisperTokenizer
 from whisper.utils import compression_ratio
+
+from utils.whisper_dataloader import OpenCpopDataCollatorWithPadding, SpeechDataCollatorWithPadding, WrappedDataset
 
 if TYPE_CHECKING:
     from model.whisper_official import WhisperOfficial
@@ -440,6 +443,32 @@ class SuppressTokens(LogitFilter):
     def apply(self, logits: Tensor, tokens: Tensor):
         logits[:, self.suppress_tokens] = -np.inf
 
+class OpenCpopRules(LogitFilter):
+    def __init__(self, tokenizer: WhisperTokenizer, sample_begin: int, template=['time','order','hanzi','hanzi','note','time']) -> None:
+        super().__init__()
+        self.template = template
+        self.sample_begin = sample_begin
+        self.tokenizer = tokenizer
+        
+    def apply(self, logits: Tensor, tokens: Tensor) -> None:
+        for k in range(tokens.shape[0]):
+            sampled_tokens = tokens[k, self.sample_begin :]
+            current = self.template[len(sampled_tokens)%len(self.template)]
+            if current == 'order':
+                order = len(sampled_tokens) // len(self.template)
+                order_token = self.tokenizer.encode(f'<|{order}|>', allowed_special='all')[0]
+                # print('order_token', order_token)
+                logits[k, :order_token] = -np.inf
+                logits[k, order_token+1:] = -np.inf
+            # if current == 'time':
+            #     eot_prob = logits[k, self.tokenizer.eot]
+            #     logits[k, :self.tokenizer.timestamp_begin] = -np.inf
+            #     logits[k, self.tokenizer.timestamp_end+1:] = -np.inf
+            #     logits[k, self.tokenizer.eot] = eot_prob
+            if current == 'note':
+                logits[k, :self.tokenizer.notes_begin] = -np.inf
+                logits[k, self.tokenizer.notes_end+1:] = -np.inf
+        return logits
 
 class ApplyTimestampRules(LogitFilter):
     def __init__(
@@ -530,9 +559,9 @@ class DecodingTask:
         self.n_ctx: int = model.dims.n_text_ctx
         self.sample_len: int = options.sample_len or model.dims.n_text_ctx // 2
 
-        self.sot_sequence: Tuple[int] = tokenizer.hanzi_note_time_order_sequence
+        self.sot_sequence: Tuple[int] = tokenizer.sot_sequence
         if self.options.without_timestamps:
-            self.sot_sequence = tokenizer.hanzi_note_order_sequence
+            self.sot_sequence = tokenizer.sot_sequence_including_notimestamps
 
         self.initial_tokens: Tuple[int] = self._get_initial_tokens()
         self.sample_begin: int = len(self.initial_tokens)
@@ -562,18 +591,19 @@ class DecodingTask:
         
         self.logit_filters.append(SuppressTokens([self.tokenizer.soi, self.tokenizer.order, self.tokenizer.hanzi, self.tokenizer.note, self.tokenizer.end]))
         # self.logit_filters.append(SuppressPrevTokens(self.tokenizer))
-        if not options.without_timestamps:
-            precision = CHUNK_LENGTH / model.dims.n_audio_ctx  # usually 0.02 seconds
-            max_initial_timestamp_index = None
-            if options.max_initial_timestamp:
-                max_initial_timestamp_index = round(
-                    self.options.max_initial_timestamp / precision
-                )
-            self.logit_filters.append(
-                ApplyTimestampRules(
-                    tokenizer, self.sample_begin, max_initial_timestamp_index
-                )
-            )
+        self.logit_filters.append(OpenCpopRules(tokenizer=tokenizer, sample_begin=self.sample_begin))
+        # if not options.without_timestamps:
+        #     precision = CHUNK_LENGTH / model.dims.n_audio_ctx  # usually 0.02 seconds
+        #     max_initial_timestamp_index = None
+        #     if options.max_initial_timestamp:
+        #         max_initial_timestamp_index = round(
+        #             self.options.max_initial_timestamp / precision
+        #         )
+        #     self.logit_filters.append(
+        #         ApplyTimestampRules(
+        #             tokenizer, self.sample_begin, max_initial_timestamp_index
+        #         )
+        #     )
 
     def _verify_options(self, options: DecodingOptions) -> DecodingOptions:
         if options.beam_size is not None and options.best_of is not None:
@@ -839,37 +869,45 @@ def decode(
 if __name__ == "__main__":
     from torch.utils.data import ConcatDataset, DataLoader
     from model.whisper_official import WhisperOfficial
-    device='cuda'
-    oc_test = OpenCpop(train=True, key_filter=['audio', 'hanzi', 'note', 'end'])
-    collate_fn = WhisperOfficialDataCollatorWithPadding()
-    weighted_dataset = WeightedDataset(
-        [(oc_test, 1, 'order')])
+    import torchaudio
+    device='cpu'
+    oc_test = OpenCpop(train=True, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
+    collate_fn = OpenCpopDataCollatorWithPadding()
+    weighted_dataset = WrappedDataset(
+        [(oc_test, 1, ['order', 'pad'])])
+    
+    # collate_fn = SpeechDataCollatorWithPadding()
+    # dataset_d = Openslr68(train=False, key_filter=['audio', 'hanzi'])
+    # weighted_dataset = WrappedDataset([
+    #     (dataset_d, 1, ['pad']),
+    # ])
     loader = DataLoader(weighted_dataset,
-                        batch_size=1,
+                        batch_size=5,
                         shuffle=False,
                         collate_fn=collate_fn,
-                        num_workers=2,
+                        num_workers=1,
                         persistent_workers=True,
                         drop_last=True,
                         )
     
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/timestamp_006/checkpoint-006-0.63.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_002/checkpoint-006-0.71.ckpt", model, True)
 
     options = DecodingOptions(
         language='zh',
-        sample_len=50,
+        sample_len=200,
         fp16=False if device=='cpu' else True,
         beam_size=5,
         patience=3,
         without_timestamps=False,
-        temperature=0.2,
-        prompt='干手厅宰沃发端得知减',
+        temperature=0.1,
+        prompt='感受停在我发端的指尖',
     )
     for b in loader:
         b: WhisperOfficialBatch = b
-        print(model.tokenizer.decode(b.data[0]))
-        segment=b.mel.to(device)
+        print(model.tokenizer.decode(b.data[0], stop_at=model.tokenizer.eot))
+        torchaudio.save('logs/test_vad.wav', b.waveform[0], 16000)
+        segment=b.mel[0].to(device)
         print('segment', segment.shape)
         decode_result = decode(model, segment, options)
         print(decode_result)

@@ -19,45 +19,57 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
     def __init__(self, model='tiny', num_workers=1) -> None:
         super().__init__(model, num_workers)
     
-    def add_random_numbers(self, array, n, k):
-        lower_bound = torch.min(array).item() / 100
-        upper_bound = torch.max(array).item() / 100
-        random_numbers_front = torch.randn(n) * (upper_bound - lower_bound) + lower_bound
-        random_numbers_back = torch.randn(k) * (upper_bound - lower_bound) + lower_bound
-        array_with_random_numbers = torch.cat((random_numbers_front, array, random_numbers_back))
+    def add_random_numbers(self, array, n:int=0, k:int=0):
+        lower_bound = torch.min(array).item() / 1000
+        upper_bound = torch.max(array).item() / 1000
+        array_with_random_numbers = array
+        if n > 0:
+            random_numbers_front = torch.randn(1, n) * (upper_bound - lower_bound) + lower_bound
+            array_with_random_numbers = torch.cat((random_numbers_front, array_with_random_numbers), dim=-1)
+        if k > 0:
+            random_numbers_back = torch.randn(1, k) * (upper_bound - lower_bound) + lower_bound
+            array_with_random_numbers = torch.cat((array_with_random_numbers, random_numbers_back), dim=-1)
         return array_with_random_numbers
 
     '''
     add_first/add_last works by add noise before and after audio by seconds
     '''
-    def audio_to_mel(self, audio, add_first=.0, add_last=.0):        
-        audio = audio.flatten()
-        add_first = int(self.SAMPLE_RATE*add_first)
-        add_last = int(self.SAMPLE_RATE*add_last)
-        audio = self.add_random_numbers(audio, add_first, add_last)
-        assert len(audio.shape) == 1
-        assert audio.shape[-1] < whisper.audio.N_SAMPLES  # or it will be cut
-        audio = whisper.pad_or_trim(audio)
-        mel = whisper.log_mel_spectrogram(audio)
-        return mel
+    def audio_to_mel(self, audio, add_first=.0, add_last=.0):
+        if add_first > .0 or add_last > .0:
+            assert len(audio.shape) == 2, f'shape of audio should be [1, N], but {audio.shape} found'
+            add_first = int(self.SAMPLE_RATE*add_first)
+            add_last = int(self.SAMPLE_RATE*add_last)
+            audio = self.add_random_numbers(audio, add_first, add_last)
+            if audio.shape[-1] >= whisper.audio.N_SAMPLES:
+                print(f"warn, audio len={audio.shape[-1]} > N_SAMPLES={whisper.audio.N_SAMPLES}")
+        audio_flat = audio.flatten()
+        audio_pad = whisper.pad_or_trim(audio_flat)
+        mel = whisper.log_mel_spectrogram(audio_pad)
+        return mel, audio
 
     def __call__(self, input: list[dict]) -> WhisperOfficialBatch:
         '''
         Accept input, which is a list of data, containing the keys you want to add to the 
         output data string
         '''
-        features: dict[str, list] = {'mel': [], 'data': [], 'data_label': []}
+        features: dict[str, list] = {'mel': [], 'data': [], 'data_label': [], 'waveform': []}
         feature_lengths: list[int] = []
         for data in input:
+            if 'waveform' not in data:
+                waveform = self.load_wave(data['audio'], sample_rate=self.SAMPLE_RATE)
+                data['waveform'] = waveform
+            else:
+                waveform = data['waveform']
             keys = list(data.keys())
             add_first = .0
             add_last = .0
             if 'pad' in keys:
                 add_first = random.random() * 0.9
                 add_last = random.random() * 0.9
-            audio = self.load_wave(data['audio'], sample_rate=self.SAMPLE_RATE)
-            mel = self.audio_to_mel(audio, add_first, add_last)
+            # audio = self.load_wave(data['audio'], sample_rate=self.SAMPLE_RATE)
+            mel, waveform = self.audio_to_mel(waveform, add_first, add_last)
             features['mel'].append(mel)
+            features['waveform'].append(waveform)
             keys.remove('audio')
             assert len(keys) >= 1
             data_concated = ''
@@ -75,7 +87,8 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
                 if 'hanzi' in keys:
                     hanzi = data['hanzi']
                     if hanzi[i] in ['AP', 'SP', 'SL']:
-                        hanzi[i] = f'<|{hanzi[i]}|>'
+                        hanzi[i] = f'<|{hanzi[i]}|><|{hanzi[i]}|>' 
+                        # duplate spaticial tokens which will be on the same place with hanzi because hanzi takes 2 tokens
                     data_concated += f'{hanzi[i]}'
                 # 3. note
                 if 'note' in keys:
@@ -104,7 +117,7 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
 
         for k, v in features.items():
-            if k in ['mel', 'mask']:
+            if k in ['mel', 'mask', 'waveform']:
                 continue
             if 'label' in k:
                 constant_values = self.const_pad_label
@@ -121,7 +134,8 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
         sonic_batch = WhisperOfficialBatch(
             mel=features['mel'],
             data=features['data'],
-            data_label=features['data_label']
+            data_label=features['data_label'],
+            waveform=features['waveform']
         )
 
         return sonic_batch
@@ -148,7 +162,6 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             data_builder = []
             if 'order' in keys:
                 data_builder += [self.tokenizer.sot_prev]
-            if 'order' in keys:
                 data_builder += [self.tokenizer.order]
             if notimestamp:
                 data_builder += [self.tokenizer.no_timestamps]
@@ -157,23 +170,26 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
                 data_builder += [self.tokenizer.no_timestamps] # this duplication is needed
             data_builder += data_concated_encoded + [self.tokenizer.eot]
             wav_concated_tensor = torch.cat(wav_concated, dim=-1)
-            mel = self.audio_to_mel(wav_concated_tensor, add_first, add_last)
-            return data_builder, mel
+            # input[idx]['waveform'] = wav_concated_tensor
+            mel, _ = self.audio_to_mel(wav_concated_tensor)
+            return data_builder, mel, wav_concated_tensor
             
         for batch_idx in range(random_concat_num):
             data = shuffled_input[batch_idx]
             keys = list(data.keys())
             add_first = .0
-            add_last = .0
             if 'pad' in keys:
                 add_first = random.random() * 0.9
-                add_last = random.random() * 0.9
             waveform = data['waveform']
-            # get timestamp
+            # time_len, which is the actual length of the input waveform
             wav_len = waveform.shape[-1]
             time_len = float(wav_len) / self.SAMPLE_RATE
+            # append noise before waveform
+            add_first_samples = int(self.SAMPLE_RATE*add_first)
+            waveform = self.add_random_numbers(waveform, add_first_samples, 0)
+           
             # if this data will cause time > 30s
-            if time_accumulated + time_len + add_first + add_last > 29.9:
+            if time_accumulated + time_len + add_first > 29.9:
                 return finished_concat()
             wav_concated.append(waveform)
             keys.remove('audio')
@@ -182,8 +198,7 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             # 0. start
             if not notimestamp:
                 time_accumulated += add_first
-                start = time_accumulated
-                value = (float(start) + 0.01) // 0.02
+                value = (float(time_accumulated) + 0.01) // 0.02
                 data_concated += f'<|{value * 0.02:.2f}|>'
             if 'hanzi' in keys and batch_idx % self.num_concat != 0 and notimestamp:
                 data_concated += '，'
@@ -197,14 +212,12 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             # 2. end (of timestamp)
             if not notimestamp:
                 time_accumulated += time_len
-                end = time_accumulated
-                time_accumulated += add_last
-                value = (float(end) + 0.01) // 0.02
+                value = (float(time_accumulated) + 0.01) // 0.02
                 data_concated += f'<|{value * 0.02:.2f}|>'
         return finished_concat()
     
     def __call__(self, input: list[dict]) -> WhisperOfficialBatch:
-        features: dict[str, list] = {'mel': [], 'data': [], 'data_label': []}
+        features: dict[str, list] = {'mel': [], 'data': [], 'data_label': [], 'waveform': []}
         feature_lengths: list[int] = []
         input_size = len(input)
         if self.num_concat == None:
@@ -214,25 +227,26 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             if 'waveform' in data:
                 continue
             waveform = self.load_wave(data['audio'], sample_rate=self.SAMPLE_RATE)
-            # trim silence and quiet background sounds
-            vad_waveform = vad(waveform, sample_rate=self.SAMPLE_RATE)
-            reversed_waveform = torch.flip(vad_waveform, [1])
-            reversed_vad_waveform = vad(reversed_waveform, sample_rate=self.SAMPLE_RATE)
-            waveform = torch.flip(reversed_vad_waveform, [1])
+            # # trim silence and quiet background sounds
+            # vad_waveform = vad(waveform, sample_rate=self.SAMPLE_RATE)
+            # reversed_waveform = torch.flip(vad_waveform, [1])
+            # reversed_vad_waveform = vad(reversed_waveform, sample_rate=self.SAMPLE_RATE)
+            # waveform = torch.flip(reversed_vad_waveform, [1])
             data['waveform'] = waveform
             
         for i in range(input_size):
-            data_builder, mel = self.random_concat_input(input, i, random.randint(1, self.num_concat))
+            data_builder, mel, waveform_concat = self.random_concat_input(input, i, random.randint(1, self.num_concat))
             features['data'].append(data_builder)
             features['data_label'].append(
                 data_builder[1:]+[self.tokenizer.pad])
             feature_lengths.append(len(data_builder))
             features['mel'].append(mel)
+            features['waveform'].append(waveform_concat)
         
         features['mel'] = torch.concat([m[None, :] for m in features['mel']])
 
         for k, v in features.items():
-            if k in ['mel', 'mask']:
+            if k in ['mel', 'mask', 'waveform']:
                 continue
             if 'label' in k:
                 constant_values = self.const_pad_label
@@ -249,7 +263,8 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
         sonic_batch = WhisperOfficialBatch(
             mel=features['mel'],
             data=features['data'],
-            data_label=features['data_label']
+            data_label=features['data_label'],
+            waveform=features['waveform']
         )
         return sonic_batch
 
@@ -282,11 +297,11 @@ class WrappedDataset(torch.utils.data.Dataset):
 if __name__ == '__main__':
     def test_opencpop():
         from data_reader.opencpop import OpenCpop
-        openCpop = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'start', 'end'])
+        openCpop = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
         wrapped_dataset = WrappedDataset([
-            (openCpop, 1, ['order', 'notimestamp']),
+            # (openCpop, 1, ['order', 'notimestamp']),
             (openCpop, 1, ['order', 'pad']),
-            (openCpop, 1, ['pad'])
+            # (openCpop, 1, ['pad'])
             ])
         collate_fn = OpenCpopDataCollatorWithPadding()
         batch_size=8
@@ -305,6 +320,7 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 print('Data', collate_fn.tokenizer.decode(
                     b.data[i].tolist(), stop_at=collate_fn.tokenizer.eot))
+                torchaudio.save('logs/test_vad.wav', b.waveform[i], openCpop.SAMPLE_RATE)
                 # print('Labl',collate_fn.tokenizer.decode(
                 #     b.data_label[i].tolist(), stop_at=collate_fn.tokenizer.eot))
             break
@@ -336,7 +352,9 @@ if __name__ == '__main__':
                 print('Labl', i, collate_fn.tokenizer.decode(
                     b.data_label[i].tolist(), stop_at=collate_fn.tokenizer.eot))
                 print('Mel', i, b.mel[i].shape)
+                torchaudio.save('logs/test_vad.wav', b.waveform[i], openslr.SAMPLE_RATE)
+                break
             break
 
-    # test_opencpop()
-    test_speech()
+    test_opencpop()
+    # test_speech()

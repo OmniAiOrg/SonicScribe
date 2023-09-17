@@ -162,7 +162,6 @@ val_dataloader = get_dataloader(False)
 
 '''
 # Run learning rate finder
-trainer = Trainer()
 from pytorch_lightning.tuner import Tuner
 tuner = Tuner(trainer)
 lr_finder = tuner.lr_find(model, train_dataloaders=train_dataloader, num_training=501)

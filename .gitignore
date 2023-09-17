@@ -9,3 +9,4 @@ artifacts/checkpoint/*
 笔记.txt
 logs.bac/
 .lr_find_*.ckpt
+*.bac*/*

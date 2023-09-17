@@ -27,33 +27,34 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "timestamp_008"
+train_id = "timestamp_7"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-# resume_checkpoint = "whisper_official_005/checkpoint-002-0.00.ckpt"
-resume_checkpoint = "timestamp_008/last.ckpt"
+resume_checkpoint = "timestamp_6/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 0.00001
-    weight_decay = 0.001
+    learning_rate = 8.7e-6 #5.281682335805869e-05
+    weight_decay = 1e-3
     adam_epsilon = 1e-7
     warmup_steps = 0
-    batch_size = 3
+    batch_size = 8
     precision = '16-mixed' # 32 for single, 16 for half (faster)
-    num_worker = 10 # <= batch_size, <= cpu cores, larger is better
+    num_worker = 10 # = cpu cores
     pin_memory=True
     num_train_epochs = 50
-    gradient_accumulation_steps = 8
+    gradient_accumulation_steps = 3
     sample_rate = SAMPLE_RATE
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
-    limit_val_batches = 0.02
+    limit_val_batches = 0.02 # 0.02 when train, None else
     val_check_interval = 2000 # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
+    stop_grad_on_encoder = True
+    num_concat = 1
     
 # 2. Trainer preparation
 cfg = Config()
@@ -68,7 +69,7 @@ tflogger = TensorBoardLogger(
 
 checkpoint_callback = ModelCheckpoint(
     dirpath=f"{check_output_dir}/checkpoint/{train_id}",
-    filename="checkpoint-{epoch:03d}-{val/loss:.2f}",
+    filename="checkpoint-{epoch:03d}-{val/loss:.5f}",
     save_top_k=5,
     monitor = 'val/loss',
     auto_insert_metric_name=False,
@@ -99,8 +100,8 @@ trainer = Trainer(
     enable_progress_bar = cfg.enable_progress_bar,
     profiler="simple" if cfg.overfit_batches > 0 else None
     )
-collect_fn = SpeechDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker)
-model = WhisperOfficial('tiny')
+collect_fn = SpeechDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker, num_concat=cfg.num_concat)
+model = WhisperOfficial('tiny', stop_grad_on_encoder=cfg.stop_grad_on_encoder)
 if ckpt_path == None:
     initialize_whisper_official_from_whisper(model)
     log_path = log_output_dir+'/'+train_name+'/'+train_id
@@ -118,9 +119,9 @@ def naive_dataloader(dataset, train):
                 batch_size=cfg.batch_size,
                 shuffle=True if train and cfg.overfit_batches==0 else False,
                 collate_fn=collect_fn,
-                num_workers = cfg.num_worker,
+                num_workers = cfg.num_worker if train else 4,
                 pin_memory=cfg.pin_memory,
-                pin_memory_device = DEVICE if cfg.pin_memory else None,
+                pin_memory_device = DEVICE if cfg.pin_memory else "",
                 persistent_workers=True
                 )
 
@@ -130,10 +131,10 @@ def get_dataloader(train=True) -> DataLoader:
     dataset_c = Openslr47(train=train, key_filter=['audio', 'hanzi'])
     dataset_d = Openslr68(train=train, key_filter=['audio', 'hanzi'])
     wrapped_dataset = WrappedDataset([
-        (dataset_a, 1, ['pad']),
-        (dataset_b, 1, ['pad']),
-        (dataset_c, 1, ['pad']),
-        (dataset_d, 1, ['pad']),
+        (dataset_a, 1, ['notimestamp']),
+        (dataset_b, 1, ['notimestamp']),
+        (dataset_c, 1, ['notimestamp']),
+        (dataset_d, 1, ['notimestamp']),
         # (dataset_a, 1, ['notimestamp','pad']),
         # (dataset_b, 1, ['notimestamp','pad']),
         # (dataset_c, 1, ['notimestamp','pad']),
@@ -146,10 +147,27 @@ def get_dataloader(train=True) -> DataLoader:
 train_dataloader = get_dataloader(True)
 val_dataloader = get_dataloader(False)
 
+'''
+# Run learning rate finder
+from pytorch_lightning.tuner import Tuner
+tuner = Tuner(trainer)
+lr_finder = tuner.lr_find(model, 
+                          train_dataloaders=train_dataloader, 
+                          val_dataloaders=val_dataloader,
+                          num_training=100,
+                          max_lr=0.01)
+print(lr_finder.results)
+fig = lr_finder.plot(suggest=True)
+fig.savefig('logs/lr.png')
+new_lr = lr_finder.suggestion()
+print('new_lr', new_lr)
+exit()
+'''
+
 # 4. fit the model
 trainer.fit(
     model, 
     train_dataloader, 
     val_dataloader, 
-    ckpt_path = ckpt_path
+    # ckpt_path = ckpt_path
     )
