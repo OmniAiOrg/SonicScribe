@@ -856,7 +856,8 @@ if __name__ == "__main__":
         fp16=False if device=='cpu' else True,
         beam_size=50,
         without_timestamps=True,
-        temperature=0.4
+        temperature=0.4,
+        prompt='感受停在我发端的指尖',
     )
     for b in loader:
         b: WhisperOfficialBatch = b

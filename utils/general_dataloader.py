@@ -202,10 +202,11 @@ class WhisperOfficialBatch:
     data: Optional[Tensor]
     data_label: Optional[Tensor]
     waveform: Optional[list[Tensor]] = None
+    clusters: Optional[list[str]] = None
 
 
 def whisper_official_batch_to_shape(sonic_batch: WhisperOfficialBatch):
-    field_names = [field.name for field in fields(WhisperOfficialBatch) if field.name != 'waveform']
+    field_names = [field.name for field in fields(WhisperOfficialBatch) if field.name not in ['waveform', 'clusters']]
     sonic_batch_shape = {}
     for field_name in field_names:
         value = getattr(sonic_batch, field_name)

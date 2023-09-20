@@ -30,9 +30,10 @@ from whisper.utils import (
     optional_int,
     str2bool,
 )
+from utils.diff_singer_converter import opencpop_to_diffsinger
 
 from utils.model_weight_initializer import initialize_whisper_official_from_checkpoint
-from utils.naive_tokenizer import get_tokenizer
+from utils.naive_tokenizer import WhisperTokenizer, get_tokenizer
 
 if TYPE_CHECKING:
     from model.whisper_official import WhisperOfficial
@@ -130,7 +131,7 @@ def transcribe(
 
     language: str = decode_options["language"]
     task: str = decode_options.get("task", "transcribe")
-    tokenizer = get_tokenizer(model.is_multilingual, language=language, task=task)
+    tokenizer: WhisperTokenizer = get_tokenizer(model.is_multilingual, language=language, task=task)
 
     assert not (word_timestamps and task == "translate")
 
@@ -303,7 +304,7 @@ def transcribe(
                 )
                 seek += segment_size
 
-            if word_timestamps:
+            if word_timestamps and False:
                 add_word_timestamps(
                     segments=current_segments,
                     model=model,
@@ -326,7 +327,7 @@ def transcribe(
                     if seek_shift > 0:
                         seek = previous_seek + seek_shift
 
-            if verbose:
+            if verbose and False:
                 for segment in current_segments:
                     start, end, text = segment["start"], segment["end"], segment["text"]
                     line = f"[{format_timestamp(start)} --> {format_timestamp(end)}] {text}"
@@ -362,6 +363,7 @@ def transcribe(
         text=tokenizer.decode(all_tokens[len(initial_prompt_tokens) :]),
         segments=all_segments,
         language=language,
+        all_tokens=all_tokens,
     )
 
 
@@ -449,12 +451,20 @@ def cli():
 if __name__ == "__main__":
     # cli()
     from model.whisper_official import WhisperOfficial
+    model= WhisperOfficial('tiny').to('cpu')
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_006/last.ckpt", model, True)
     result = transcribe(
-            model= WhisperOfficial('tiny').to('cuda'),
-            audio='assets/sample_audio/opencpop/2003000102.wav', 
-            language='Chinese', 
-            temperature=0.0, 
-            word_timestamps=True,
-            condition_on_previous_text = False,
+            model= model,
+            audio='assets/test_wav/wenbie.wav', 
+            language='zh', 
+            sample_len=200,
+            fp16=False,
+            beam_size=5,
+            patience=3,
+            without_timestamps=False,
+            temperature=0.4,
         )
-    print(result)
+    print(result['all_tokens'])
+    diffsinger = opencpop_to_diffsinger(result['all_tokens'], model.tokenizer)
+    print(diffsinger)
+    # print(result)

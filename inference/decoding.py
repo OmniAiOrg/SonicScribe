@@ -11,6 +11,7 @@ from whisper.audio import CHUNK_LENGTH
 from data_reader.opencpop import OpenCpop
 from data_reader.openslr_38 import Openslr38
 from data_reader.openslr_68 import Openslr68
+from utils.diff_singer_converter import opencpop_to_diffsinger
 from utils.general_dataloader import WeightedDataset, WhisperOfficialBatch, WhisperOfficialDataCollatorWithPadding
 from utils.model_weight_initializer import initialize_whisper_official_from_checkpoint
 from utils.naive_tokenizer import get_tokenizer, WhisperTokenizer
@@ -444,7 +445,7 @@ class SuppressTokens(LogitFilter):
         logits[:, self.suppress_tokens] = -np.inf
 
 class OpenCpopRules(LogitFilter):
-    def __init__(self, tokenizer: WhisperTokenizer, sample_begin: int, template=['time','order','hanzi','hanzi','note','time']) -> None:
+    def __init__(self, tokenizer: WhisperTokenizer, sample_begin: int, template=['time1','order','hanzi','hanzi','note','time2']) -> None:
         super().__init__()
         self.template = template
         self.sample_begin = sample_begin
@@ -454,20 +455,38 @@ class OpenCpopRules(LogitFilter):
         for k in range(tokens.shape[0]):
             sampled_tokens = tokens[k, self.sample_begin :]
             current = self.template[len(sampled_tokens)%len(self.template)]
+            if current == 'hanzi':
+                # should not predict duplicated AP or SP
+                if len(tokens[k]) > len(self.template):
+                    if tokens[k, -len(self.template)] == self.tokenizer.AP:
+                        logits[k, self.tokenizer.AP] = -np.inf
+                    elif tokens[k, -len(self.template)] == self.tokenizer.SP:
+                        logits[k, self.tokenizer.SP] = -np.inf
             if current == 'order':
                 order = len(sampled_tokens) // len(self.template)
                 order_token = self.tokenizer.encode(f'<|{order}|>', allowed_special='all')[0]
                 # print('order_token', order_token)
                 logits[k, :order_token] = -np.inf
                 logits[k, order_token+1:] = -np.inf
-            # if current == 'time':
-            #     eot_prob = logits[k, self.tokenizer.eot]
-            #     logits[k, :self.tokenizer.timestamp_begin] = -np.inf
-            #     logits[k, self.tokenizer.timestamp_end+1:] = -np.inf
-            #     logits[k, self.tokenizer.eot] = eot_prob
+            if current in ['time1', 'time2']:
+                eot_prob = logits[k, self.tokenizer.eot].clone()
+                logits[k, :self.tokenizer.timestamp_begin] = -np.inf
+                logits[k, self.tokenizer.timestamp_end+1:] = -np.inf
+                if current == 'time1':
+                    logits[k, self.tokenizer.eot] = eot_prob
+                if current == 'time2':
+                    prev_time = tokens[k, 1-len(self.template)]
+                    logits[k, :prev_time] = -np.inf
             if current == 'note':
+                # AP, SP must cause rest
+                if tokens[k, -1] in [self.tokenizer.AP, self.tokenizer.SP]:
+                    rest = logits[k, self.tokenizer.notes_end].clone()
+                    logits[k, :] = -np.inf
+                    logits[k, self.tokenizer.notes_end] = rest
+                    continue
+                # hanzi can not cause rest
                 logits[k, :self.tokenizer.notes_begin] = -np.inf
-                logits[k, self.tokenizer.notes_end+1:] = -np.inf
+                logits[k, self.tokenizer.notes_end:] = -np.inf
         return logits
 
 class ApplyTimestampRules(LogitFilter):
@@ -559,9 +578,9 @@ class DecodingTask:
         self.n_ctx: int = model.dims.n_text_ctx
         self.sample_len: int = options.sample_len or model.dims.n_text_ctx // 2
 
-        self.sot_sequence: Tuple[int] = tokenizer.sot_sequence
-        if self.options.without_timestamps:
-            self.sot_sequence = tokenizer.sot_sequence_including_notimestamps
+        self.sot_sequence: Tuple[int] = tokenizer.singing_sequence
+        # if self.options.without_timestamps:
+        #     self.sot_sequence = tokenizer.sot_sequence_including_notimestamps
 
         self.initial_tokens: Tuple[int] = self._get_initial_tokens()
         self.sample_begin: int = len(self.initial_tokens)
@@ -643,7 +662,7 @@ class DecodingTask:
             tokens = (
                 [self.tokenizer.sot_prev]
                 + prompt_tokens[-(self.n_ctx // 2 - 1) :]
-                + tokens
+                + tokens[:]
             )
 
         return tuple(tokens)
@@ -737,7 +756,7 @@ class DecodingTask:
 
                 # expand the tokens tensor with the selected next tokens
                 tokens, completed = self.decoder.update(tokens, logits, sum_logprobs)
-                print('XXX3', self.decode_tokens(tokens))
+                # print('XXX3', self.decode_tokens(tokens))
                 if completed or tokens.shape[-1] > self.n_ctx:
                     break
         finally:
@@ -871,7 +890,7 @@ if __name__ == "__main__":
     from model.whisper_official import WhisperOfficial
     import torchaudio
     device='cpu'
-    oc_test = OpenCpop(train=True, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
+    oc_test = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
     collate_fn = OpenCpopDataCollatorWithPadding()
     weighted_dataset = WrappedDataset(
         [(oc_test, 1, ['order', 'pad'])])
@@ -891,7 +910,7 @@ if __name__ == "__main__":
                         )
     
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_002/checkpoint-006-0.71.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_006/last.ckpt", model, True)
 
     options = DecodingOptions(
         language='zh',
@@ -901,14 +920,17 @@ if __name__ == "__main__":
         patience=3,
         without_timestamps=False,
         temperature=0.1,
-        prompt='感受停在我发端的指尖',
+        # prompt='鱼鳞试了填空',
+        # prefix='<|singing|>'
     )
     for b in loader:
         b: WhisperOfficialBatch = b
         print(model.tokenizer.decode(b.data[0], stop_at=model.tokenizer.eot))
-        torchaudio.save('logs/test_vad.wav', b.waveform[0], 16000)
+        torchaudio.save('logs/test_decoding.wav', b.waveform[0], 16000)
         segment=b.mel[0].to(device)
         print('segment', segment.shape)
         decode_result = decode(model, segment, options)
         print(decode_result)
+        diffsinger = opencpop_to_diffsinger(decode_result.tokens, model.tokenizer)
+        print(diffsinger)
         break

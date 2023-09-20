@@ -10,3 +10,4 @@ artifacts/checkpoint/*
 logs.bac/
 .lr_find_*.ckpt
 *.bac*/*
+assets/test_wav

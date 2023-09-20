@@ -112,8 +112,10 @@ class WhisperOfficialLightling(LightningModule):
         hanzi_wer, note_wer, timestamp_wer = self.calculate_char_error_rate(out_logits, batch, batch_id)
         self.log(f'val/loss', loss, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         self.log(f'wer/hanzi_wer', hanzi_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'wer/note_wer', note_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
-        self.log(f'wer/time_wer', timestamp_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        if note_wer > 0:
+            self.log(f'wer/note_wer', note_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
+        if timestamp_wer > 0:
+            self.log(f'wer/time_wer', timestamp_wer, on_step=True, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss, hanzi_wer
         
     def predict_step(self, batch, batch_id):

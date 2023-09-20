@@ -18,7 +18,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from utils.model_weight_initializer import initialize_sonic_scriber_from_whisper, initialize_whisper_official_from_checkpoint, initialize_whisper_official_from_whisper
-from utils.whisper_dataloader import SpeechDataCollatorWithPadding, WrappedDataset
+from utils.preparation.human_dataloader_verify import verify_dataloader_by_human
+from utils.whisper_dataloader import OpenCpopDataCollatorWithPadding, RandomReplaceDataset, SpeechDataCollatorWithPadding, WrappedDataset, mixedDataCollator
 
 print('torch=', torch.__version__, 'torch_lightling=', pl.__version__)
 # 1. training settings
@@ -27,16 +28,16 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "timestamp_10"
+train_id = "opencpop_006"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-resume_checkpoint = "timestamp_9/last.ckpt"
+resume_checkpoint = "opencpop_006/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 8.7e-6 #5.281682335805869e-05
+    learning_rate = 1e-5 #5.281682335805869e-05
     weight_decay = 1e-3
     adam_epsilon = 1e-7
     warmup_steps = 0
@@ -49,12 +50,12 @@ class Config:
     sample_rate = SAMPLE_RATE
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
-    limit_val_batches = 0.04 # 0.02 when train, None else
-    val_check_interval = 2000 # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
+    limit_val_batches = 1 # 0.02 when train, None else
+    val_check_interval = None # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
-    stop_grad_on_encoder = True # True means will not train encoder, faster
-    num_concat = 1 # larger than 1 will be much slower
+    stop_grad_on_encoder = True
+    num_concat = 3
     
 # 2. Trainer preparation
 cfg = Config()
@@ -100,7 +101,7 @@ trainer = Trainer(
     enable_progress_bar = cfg.enable_progress_bar,
     profiler="simple" if cfg.overfit_batches > 0 else None
     )
-collect_fn = SpeechDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker, num_concat=cfg.num_concat)
+# collect_fn = SpeechDataCollatorWithPadding(model = model_size, num_workers = cfg.num_worker, num_concat=cfg.num_concat)
 model = WhisperOfficial('tiny', stop_grad_on_encoder=cfg.stop_grad_on_encoder)
 if ckpt_path == None:
     initialize_whisper_official_from_whisper(model)
@@ -114,7 +115,7 @@ else:
 model = WhisperOfficialLightling(cfg, model).to(DEVICE)
 
 # 3. Dataset for training and validation
-def naive_dataloader(dataset, train):
+def naive_dataloader(dataset, collect_fn, train):
     return  DataLoader(dataset, 
                 batch_size=cfg.batch_size,
                 shuffle=True if train and cfg.overfit_batches==0 else False,
@@ -126,26 +127,40 @@ def naive_dataloader(dataset, train):
                 )
 
 def get_dataloader(train=True) -> DataLoader:
-    dataset_a = Openslr38(train=train, key_filter=['audio', 'hanzi'])
-    dataset_b = Openslr33(train=train, key_filter=['audio', 'hanzi'])
-    dataset_c = Openslr47(train=train, key_filter=['audio', 'hanzi'])
-    dataset_d = Openslr68(train=train, key_filter=['audio', 'hanzi'])
-    wrapped_dataset = WrappedDataset([
-        (dataset_a, 1, ['notimestamp']),
-        (dataset_b, 1, ['notimestamp']),
-        (dataset_c, 1, ['notimestamp']),
-        (dataset_d, 1, ['notimestamp']),
-        # (dataset_a, 1, ['notimestamp','pad']),
-        # (dataset_b, 1, ['notimestamp','pad']),
-        # (dataset_c, 1, ['notimestamp','pad']),
-        # (dataset_d, 1, ['notimestamp','pad']),
+    dataset_a = Openslr38(train=train, key_filter=['audio', 'hanzi', 'waveform'])
+    dataset_b = Openslr33(train=train, key_filter=['audio', 'hanzi', 'waveform'])
+    dataset_c = Openslr47(train=train, key_filter=['audio', 'hanzi', 'waveform'])
+    dataset_d = Openslr68(train=train, key_filter=['audio', 'hanzi', 'waveform'])
+    openslr = WrappedDataset([
+        (dataset_a, 1, []),
+        (dataset_b, 1, []),
+        (dataset_c, 1, []),
+        (dataset_d, 1, []),
         ])
+    openCpop = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
+    wrapped_dataset = RandomReplaceDataset([
+        # (openslr, 1, ['notimestamp', 'pad']),
+        (openslr, 0.4, ['notimestamp', 'order', 'cluster:speech']),
+        (openslr, 0.4, ['notimestamp', 'cluster:speech2']),
+        (openCpop, 0.1, ['order', 'pad', 'cluster:opencpop']),
+        (openCpop, 0.1, ['pad', 'cluster:opencpop2']),
+        ])
+    speech_collate_fn = SpeechDataCollatorWithPadding(auto_merge_tensor=False)
+    opencpop_collate_fn = OpenCpopDataCollatorWithPadding(auto_merge_tensor=False)
+    collate_fn = mixedDataCollator({
+        'speech': speech_collate_fn,
+        'speech2': speech_collate_fn,
+        'opencpop': opencpop_collate_fn,
+        'opencpop2': opencpop_collate_fn
+    })
     print('wrapped_dataset', train, len(wrapped_dataset))
-    dataloader = naive_dataloader(wrapped_dataset, train)
+    dataloader = naive_dataloader(wrapped_dataset, collate_fn, train)
     return dataloader
     
 train_dataloader = get_dataloader(True)
 val_dataloader = get_dataloader(False)
+
+# verify_dataloader_by_human(train_dataloader, model.tokenizer, SAMPLE_RATE)
 
 '''
 # Run learning rate finder

@@ -26,6 +26,7 @@ class WhisperOfficial(Whisper):
         self.model_size = model
         self.stop_grad_on_encoder = stop_grad_on_encoder
         dims = self.get_model_dims(model)
+        print('dims', dims)
         super().__init__(dims)
         self.decoder = TextDecoder(
             self.dims.n_vocab,
