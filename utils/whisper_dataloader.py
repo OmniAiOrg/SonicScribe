@@ -64,12 +64,10 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
                 waveform = data['waveform']
             keys = list(data.keys())
             add_first = .0
-            add_last = .0
             if 'pad' in keys:
-                add_first = random.random() * 0.9
-                add_last = random.random() * 0.9
+                add_first = random.random() * (30. - waveform.shape[-1]/self.SAMPLE_RATE)
             # audio = self.load_wave(data['audio'], sample_rate=self.SAMPLE_RATE)
-            mel, waveform = self.audio_to_mel(waveform, add_first, add_last)
+            mel, waveform = self.audio_to_mel(waveform, add_first, 0)
             features['mel'].append(mel)
             features['waveform'].append(waveform)
             keys.remove('audio')
@@ -102,7 +100,12 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
                     value = (float(end[i]) + add_first + 0.01) // 0.02
                     data_concated += f'<|{value * 0.02:.2f}|>'
             data_concated = self.tokenizer.encode(data_concated, allowed_special="all")
-            data_builder = [self.tokenizer.soi, self.tokenizer.singing]
+            data_builder = []
+            prompt_tokens = []
+            if 'prompt' in keys:
+                if random.random() < float(data['prompt']):
+                    prompt_tokens = self.tokenizer.encode(''.join([hanzi for hanzi in data['hanzi'] if '<|' not in hanzi]), allowed_special="all")
+            data_builder += [self.tokenizer.soi, self.tokenizer.singing]
             if 'order' in keys:
                 data_builder += [self.tokenizer.order]
             if notimestamp:
@@ -111,15 +114,16 @@ class OpenCpopDataCollatorWithPadding(WhisperOfficialDataCollatorWithPadding):
             if notimestamp:
                 data_builder += [self.tokenizer.no_timestamps] # this duplication is needed
             data_builder += data_concated + [self.tokenizer.eot]
-            features['data'].append(data_builder)
+            features['data'].append([self.tokenizer.sot_prev]+prompt_tokens+[self.tokenizer.sot_lm]+data_builder)
             features['data_label'].append(
-                data_builder[1:]+[self.tokenizer.pad])
-            feature_lengths.append(len(data_builder))
+                [self.tokenizer.sot_prev]+prompt_tokens+
+                data_builder+[self.tokenizer.pad])
+            feature_lengths.append(len(data_builder)+len(prompt_tokens)+2)
 
         if self.auto_merge_tensor:
             features['mel'] = torch.concat([m[None, :] for m in features['mel']])
             for k, v in features.items():
-                if k in ['mel', 'mask', 'waveform']:
+                if k in ['mel', 'mask', 'waveform', 'prompt', 'cluster']:
                     continue
                 if 'label' in k:
                     constant_values = self.const_pad_label
@@ -161,9 +165,13 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
         time_accumulated = 0
         wav_concated = []
         order_count = 0
+        prompt_hanzi = ''
         def finished_concat():
+            prompt_tokens = []
             data_concated_encoded = self.tokenizer.encode(data_concated, allowed_special="all")
             data_builder = []
+            if 'prompt' in keys and random.random() < float(data['prompt']) and len(prompt_hanzi) > 0:
+                prompt_tokens = self.tokenizer.encode(prompt_hanzi, allowed_special="all")
             if 'order' in keys:
                 data_builder += [self.tokenizer.soi]
                 data_builder += [self.tokenizer.order]
@@ -176,7 +184,7 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             wav_concated_tensor = torch.cat(wav_concated, dim=-1)
             # input[idx]['waveform'] = wav_concated_tensor
             mel, _ = self.audio_to_mel(wav_concated_tensor)
-            return data_builder, mel, wav_concated_tensor
+            return data_builder, mel, wav_concated_tensor, prompt_tokens
             
         for batch_idx in range(random_concat_num):
             data = shuffled_input[batch_idx]
@@ -226,6 +234,10 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
                 time_accumulated += time_len
                 value = (float(time_accumulated) + 0.01) // 0.02
                 data_concated += f'<|{value * 0.02:.2f}|>'
+            # 3. prev prompt
+            if 'prompt' in keys:
+                if random.random() < float(data['prompt']):
+                    prompt_hanzi += ''.join(data['hanzi'])
         return finished_concat()
     
     def __call__(self, input: list[dict]) -> WhisperOfficialBatch:
@@ -247,10 +259,11 @@ class SpeechDataCollatorWithPadding(OpenCpopDataCollatorWithPadding):
             data['waveform'] = waveform
             
         for i in range(input_size):
-            data_builder, mel, waveform_concat = self.random_concat_input(input, i, random.randint(1, min(input_size, self.num_concat)))
-            features['data'].append(data_builder)
+            data_builder, mel, waveform_concat, prompt_tokens = self.random_concat_input(input, i, random.randint(1, min(input_size, self.num_concat)))
+            features['data'].append([self.tokenizer.sot_prev]+prompt_tokens+[self.tokenizer.sot_lm]+data_builder)
             features['data_label'].append(
-                data_builder[1:]+[self.tokenizer.pad])
+                [self.tokenizer.sot_prev]+prompt_tokens+
+                data_builder+[self.tokenizer.pad])
             feature_lengths.append(len(data_builder))
             features['mel'].append(mel)
             features['waveform'].append(waveform_concat)
@@ -470,10 +483,10 @@ if __name__ == '__main__':
         openCpop = OpenCpop(train=False, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
         wrapped_dataset = RandomReplaceDataset([
             # (openslr, 1, ['notimestamp', 'pad']),
-            (openslr, 0.3, ['notimestamp', 'order', 'cluster:speech2']),
-            (openslr, 0.3, ['notimestamp', 'cluster:speech']),
-            (openCpop, 0.2, ['order', 'pad', 'cluster:opencpop']),
-            (openCpop, 0.2, ['pad', 'cluster:opencpop2']),
+            (openslr, 0.3, ['notimestamp', 'order', 'cluster:speech2', 'prompt:0.5']),
+            (openslr, 0.3, ['notimestamp', 'cluster:speech', 'prompt:0.5']),
+            (openCpop, 0.2, ['order', 'pad', 'cluster:opencpop', 'prompt:0.5']),
+            (openCpop, 0.2, ['pad', 'cluster:opencpop2', 'prompt:0.5']),
             ])
         speech_collate_fn = SpeechDataCollatorWithPadding(auto_merge_tensor=False)
         opencpop_collate_fn = OpenCpopDataCollatorWithPadding(auto_merge_tensor=False)
@@ -506,7 +519,7 @@ if __name__ == '__main__':
                 torchaudio.save('logs/test_vad.wav', b.waveform[i], openslr.SAMPLE_RATE)
                 input("enter for next")
                 # break
-            break
+            # break
 
     # test_opencpop()
     # test_speech()

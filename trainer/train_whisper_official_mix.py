@@ -28,12 +28,12 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "opencpop_006"
+train_id = "opencpop_010"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-resume_checkpoint = "opencpop_006/last.ckpt"
+resume_checkpoint = "opencpop_009/last.ckpt"
 
 @dataclass
 class Config:
@@ -43,19 +43,19 @@ class Config:
     warmup_steps = 0
     batch_size = 8
     precision = '16-mixed' # 32 for single, 16 for half (faster)
-    num_worker = 10 # = cpu cores
+    num_worker = 8 # = cpu cores
     pin_memory=True
     num_train_epochs = 50
     gradient_accumulation_steps = 3
     sample_rate = SAMPLE_RATE
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
-    limit_val_batches = 1 # 0.02 when train, None else
-    val_check_interval = None # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
+    limit_val_batches = 0.02 # 0.02 when train, None else
+    val_check_interval = 2000 # None for default, set to 2000 here. Even not end of epoch, run validation step every these amount of steps
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
     stop_grad_on_encoder = True
-    num_concat = 3
+    num_concat = 4
     
 # 2. Trainer preparation
 cfg = Config()
@@ -140,10 +140,10 @@ def get_dataloader(train=True) -> DataLoader:
     openCpop = OpenCpop(train=train, key_filter=['audio', 'hanzi', 'note', 'start', 'end', 'waveform'])
     wrapped_dataset = RandomReplaceDataset([
         # (openslr, 1, ['notimestamp', 'pad']),
-        (openslr, 0.4, ['notimestamp', 'order', 'cluster:speech']),
-        (openslr, 0.4, ['notimestamp', 'cluster:speech2']),
-        (openCpop, 0.1, ['order', 'pad', 'cluster:opencpop']),
-        (openCpop, 0.1, ['pad', 'cluster:opencpop2']),
+        (openslr, 0.4, ['notimestamp', 'order', 'cluster:speech', 'prompt:0.5']),
+        (openslr, 0.4, ['notimestamp', 'cluster:speech2', 'prompt:0.5']),
+        (openCpop, 0.1, ['order', 'pad', 'cluster:opencpop', 'prompt:0.5']),
+        (openCpop, 0.1, ['pad', 'cluster:opencpop2', 'prompt:0.5']),
         ])
     speech_collate_fn = SpeechDataCollatorWithPadding(auto_merge_tensor=False)
     opencpop_collate_fn = OpenCpopDataCollatorWithPadding(auto_merge_tensor=False)
@@ -184,5 +184,5 @@ trainer.fit(
     model, 
     train_dataloader, 
     val_dataloader, 
-    ckpt_path = ckpt_path
+    # ckpt_path = ckpt_path
     )

@@ -22,15 +22,16 @@ class WhisperOfficial(Whisper):
         dims.n_vocab = n_vocab
         return dims
 
-    def __init__(self, model='tiny', stop_grad_on_encoder=False):
+    def __init__(self, model='tiny', stop_grad_on_encoder=False, n_text_ctx=1344):
         self.model_size = model
         self.stop_grad_on_encoder = stop_grad_on_encoder
         dims = self.get_model_dims(model)
         print('dims', dims)
         super().__init__(dims)
+        assert n_text_ctx > self.dims.n_text_ctx
         self.decoder = TextDecoder(
             self.dims.n_vocab,
-            self.dims.n_text_ctx,
+            n_text_ctx,
             self.dims.n_text_state,
             self.dims.n_text_head,
             self.dims.n_text_layer,

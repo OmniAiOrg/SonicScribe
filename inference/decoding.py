@@ -445,7 +445,7 @@ class SuppressTokens(LogitFilter):
         logits[:, self.suppress_tokens] = -np.inf
 
 class OpenCpopRules(LogitFilter):
-    def __init__(self, tokenizer: WhisperTokenizer, sample_begin: int, template=['time1','order','hanzi','hanzi','note','time2']) -> None:
+    def __init__(self, tokenizer: WhisperTokenizer, sample_begin: int, template=['time1','order','hanzi1','hanzi2','note','time2']) -> None:
         super().__init__()
         self.template = template
         self.sample_begin = sample_begin
@@ -455,13 +455,20 @@ class OpenCpopRules(LogitFilter):
         for k in range(tokens.shape[0]):
             sampled_tokens = tokens[k, self.sample_begin :]
             current = self.template[len(sampled_tokens)%len(self.template)]
-            if current == 'hanzi':
+            if current in ['hanzi1', 'hanzi2']:
+                logits[k, self.tokenizer.notes_begin:self.tokenizer.notes_end+1] = -np.inf
+                logits[k, self.tokenizer.timestamp_begin:self.tokenizer.timestamp_end+1] = -np.inf
                 # should not predict duplicated AP or SP
                 if len(tokens[k]) > len(self.template):
                     if tokens[k, -len(self.template)] == self.tokenizer.AP:
                         logits[k, self.tokenizer.AP] = -np.inf
                     elif tokens[k, -len(self.template)] == self.tokenizer.SP:
                         logits[k, self.tokenizer.SP] = -np.inf
+                if current == 'hanzi2' and tokens[k,-1] in [self.tokenizer.AP, self.tokenizer.SP, self.tokenizer.SL]:
+                    p_APSPSL = logits[k, tokens[k,-1]].clone()
+                    logits[k,:] = -np.inf
+                    logits[k,tokens[k,-1]] = p_APSPSL
+                    
             if current == 'order':
                 order = len(sampled_tokens) // len(self.template)
                 order_token = self.tokenizer.encode(f'<|{order}|>', allowed_special='all')[0]
@@ -473,13 +480,16 @@ class OpenCpopRules(LogitFilter):
                 logits[k, :self.tokenizer.timestamp_begin] = -np.inf
                 logits[k, self.tokenizer.timestamp_end+1:] = -np.inf
                 if current == 'time1':
+                    if tokens[k, -1] > self.tokenizer.timestamp_begin:
+                        logits[k, :tokens[k, -1]] = -np.inf
+                        logits[k, tokens[k, -1]+1:] = -np.inf
                     logits[k, self.tokenizer.eot] = eot_prob
                 if current == 'time2':
                     prev_time = tokens[k, 1-len(self.template)]
                     logits[k, :prev_time] = -np.inf
             if current == 'note':
                 # AP, SP must cause rest
-                if tokens[k, -1] in [self.tokenizer.AP, self.tokenizer.SP]:
+                if tokens[k, -1] in [self.tokenizer.AP, self.tokenizer.SP, self.tokenizer.SL]:
                     rest = logits[k, self.tokenizer.notes_end].clone()
                     logits[k, :] = -np.inf
                     logits[k, self.tokenizer.notes_end] = rest
@@ -910,7 +920,7 @@ if __name__ == "__main__":
                         )
     
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_006/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_009/last.ckpt", model, True)
 
     options = DecodingOptions(
         language='zh',
@@ -920,7 +930,7 @@ if __name__ == "__main__":
         patience=3,
         without_timestamps=False,
         temperature=0.1,
-        # prompt='鱼鳞试了填空',
+        prompt='雨淋湿了天空 灰得 更讲究',
         # prefix='<|singing|>'
     )
     for b in loader:

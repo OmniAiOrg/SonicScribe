@@ -363,7 +363,7 @@ def transcribe(
         text=tokenizer.decode(all_tokens[len(initial_prompt_tokens) :]),
         segments=all_segments,
         language=language,
-        all_tokens=all_tokens,
+        all_tokens=all_tokens[len(initial_prompt_tokens) :],
     )
 
 
@@ -452,19 +452,22 @@ if __name__ == "__main__":
     # cli()
     from model.whisper_official import WhisperOfficial
     model= WhisperOfficial('tiny').to('cpu')
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_006/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_010/last.ckpt", model, True)
     result = transcribe(
             model= model,
-            audio='assets/test_wav/wenbie.wav', 
+            audio='assets/test_wav/output/wenbie/vocals.wav', 
             language='zh', 
-            sample_len=200,
+            sample_len=1000,
             fp16=False,
-            beam_size=5,
+            beam_size=10,
             patience=3,
             without_timestamps=False,
-            temperature=0.4,
+            # temperature=0.9,
+            condition_on_previous_text=True,
+            initial_prompt='我和你吻别在无人的街要疯子笑我不能拒绝我和你吻别在狂乱的夜我滴心等着迎接伤悲',
         )
     print(result['all_tokens'])
+    print(model.tokenizer.decode(result['all_tokens']))
     diffsinger = opencpop_to_diffsinger(result['all_tokens'], model.tokenizer)
     print(diffsinger)
     # print(result)

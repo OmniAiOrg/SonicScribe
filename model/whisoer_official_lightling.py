@@ -86,13 +86,13 @@ class WhisperOfficialLightling(LightningModule):
     def calculate_loss(self, out_logits:Tensor, batch:WhisperOfficialBatch, batch_id:int):
         out_logits = torch.transpose(out_logits, 1, 2)
         # ignore labels before <|startoftranscript|> on loss calculation
-        batch_size, l = batch.data_label.size()
-        for i in range(batch_size):
-            unique_value_index = (batch.data_label[i] == self.tokenizer.sot).nonzero()
-            if unique_value_index.numel() > 0 :
-                unique_value_index = unique_value_index.item()
-                batch.data_label[i, :unique_value_index] = self.tokenizer.pad
-        # print(self.tokenizer.decode(batch.data_label[0]), '\n\n\n')
+        # data_label = batch.data_label.clone()
+        # batch_size, l = data_label.size()
+        # for i in range(batch_size):
+        #     unique_value_index = (data_label[i] == self.tokenizer.sot).nonzero()
+        #     if unique_value_index.numel() > 0 :
+        #         unique_value_index = unique_value_index.item()
+        #         data_label[i, :unique_value_index] = self.tokenizer.pad
         out_loss = self.ce_loss(out_logits, batch.data_label)
         return out_loss
     

@@ -92,6 +92,7 @@ class WhisperTokenizer(Tokenizer):
         self.singing: int = self.special_tokens["<|singing|>"]
         self.AP: int = self.special_tokens["<|AP|>"]
         self.SP: int = self.special_tokens["<|SP|>"]
+        self.SL: int = self.special_tokens["<|SL|>"]
         self.singing_sequence: list[int] = self.encode("<|startofinference|><|singing|><|order|><|startoftranscript|><|zh|><|transcribe|>", allowed_special="all")
 
         langs = tuple(LANGUAGES.keys())
@@ -144,6 +145,11 @@ class WhisperTokenizer(Tokenizer):
             del kwargs['stop_at']
             target_index = token_ids.index(stop_at)+1 if stop_at in token_ids else len(token_ids)+1
             token_ids = token_ids[:target_index]
+        if 'ignore_before' in kwargs:
+            ignore_before:int = kwargs['ignore_before']
+            del kwargs['ignore_before']
+            target_index = token_ids.index(ignore_before)+1 if ignore_before in token_ids else 0
+            token_ids = token_ids[target_index:]
         return self.encoding.decode(token_ids, **kwargs)
         
 @lru_cache(maxsize=None)

@@ -52,9 +52,16 @@ def initialize_whisper_official_from_checkpoint(checkpoint_file:str, model: Whis
     for k, v in checkpoint["state_dict"].items():
         k:str = k
         k = k.replace('model.', '')
-        if 'token_embedding' in k and not strict:
+        if 'decoder.positional_embedding' in k and not strict:
             p = [p for n, p in model.named_parameters() if n==k][0]
-            print(f'k={k}, p={p.shape}')
+            print(f'positional_embedding k={k}, p={p.shape}')
+            assert p.shape[0] >= v.shape[0], f'p.shape={p.shape}, v.shape={ v.shape}'
+            padded_v = F.pad(v, (0, 0, 0, p.shape[0] - v.shape[0]), mode='constant', value=0)
+            print(f'v={v.shape} padded_v={padded_v.shape}')
+            new_checkpoint[k] = padded_v
+        elif 'token_embedding' in k and not strict:
+            p = [p for n, p in model.named_parameters() if n==k][0]
+            print(f'token_embedding k={k}, p={p.shape}')
             assert p.shape[0] >= v.shape[0], f'p.shape={p.shape}, v.shape={ v.shape}'
             padded_v = F.pad(v, (0,0,0, p.shape[0] - v.shape[0]), mode='constant', value=0)
             print(f'v={v.shape} padded_v={padded_v.shape}')
