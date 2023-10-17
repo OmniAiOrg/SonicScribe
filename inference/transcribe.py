@@ -30,7 +30,8 @@ from whisper.utils import (
     optional_int,
     str2bool,
 )
-from utils.diff_singer_converter import opencpop_to_diffsinger
+from utils.chinese_to_pinyin import is_chinese
+from utils.diff_singer_converter import opencpop_to_diffsinger, opencpop_to_list_of_tuple
 
 from utils.model_weight_initializer import initialize_whisper_official_from_checkpoint
 from utils.naive_tokenizer import WhisperTokenizer, get_tokenizer
@@ -447,27 +448,74 @@ def cli():
         result = transcribe(model, audio_path, temperature=temperature, **args)
         writer(result, audio_path, writer_args)
 
+# 处理音频文件
+def process_audio(audio_file_path, model, initial_prompt=None):
+    print('===start process audio===')
+    audio = whisper.load_audio(audio_file_path)
+    if len(audio) > 60 * SAMPLE_RATE:
+        return "Failed: Audio length exceeds 1 minute."
+
+    results = []
+
+    count = 0
+    CUT_MAX_SECS = 15
+    while len(audio) > 0:
+        is_last = len(audio) < CUT_MAX_SECS * SAMPLE_RATE
+        audio_cut = audio[:CUT_MAX_SECS * SAMPLE_RATE] if len(audio) >= CUT_MAX_SECS * SAMPLE_RATE else audio
+        retry_times = 3
+        success_flag = False
+        
+        while not success_flag and retry_times > 0:
+            retry_times -= 1
+            result = transcribe(
+                model= model,
+                audio=audio_cut, 
+                language='zh', 
+                sample_len=500,
+                fp16=False,
+                beam_size=3,
+                without_timestamps=False,
+                temperature=0.3,
+                condition_on_previous_text=True,
+                initial_prompt = initial_prompt,
+            )
+            result = opencpop_to_list_of_tuple(result['all_tokens'], model.tokenizer)
+            success_flag = all([is_chinese(hanzi) for hanzi, _, _, _ in result])
+        
+        if len(result) > 10 and not is_last:
+            result = result[:10]
+        # elif len(result) > 8 and not is_last:
+        #     result = result[:-2]
+
+        results.extend(result)
+        # current_time = sum([float(duration) for _, _, duration in result])
+        _,_,_,current_time = result[-1]
+        current_time = float(current_time)
+        audio = audio[int(current_time * SAMPLE_RATE):]
+        print(f'iteration {count} cut at time {current_time}')
+        count += 1
+        if is_last:
+            break
+
+    text = [hanzi for hanzi, _, _, _ in results]
+    notes = [note for _, note, _, _ in results]
+    notes_duration = [duration for _, _, duration, _ in results]
+
+    result = {
+        'text': ''.join(text),
+        'notes': ' | '.join(notes),
+        'notes_duration': ' | '.join(notes_duration),
+        'input_type': 'word'
+        }
+    print(f"result={result}")
+    return result
 
 if __name__ == "__main__":
     # cli()
     from model.whisper_official import WhisperOfficial
     model= WhisperOfficial('tiny').to('cpu')
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_010/last.ckpt", model, True)
-    result = transcribe(
-            model= model,
-            audio='assets/test_wav/output/wenbie/vocals.wav', 
-            language='zh', 
-            sample_len=1000,
-            fp16=False,
-            beam_size=10,
-            patience=3,
-            without_timestamps=False,
-            # temperature=0.9,
-            condition_on_previous_text=True,
-            initial_prompt='我和你吻别在无人的街要疯子笑我不能拒绝我和你吻别在狂乱的夜我滴心等着迎接伤悲',
-        )
-    print(result['all_tokens'])
-    print(model.tokenizer.decode(result['all_tokens']))
-    diffsinger = opencpop_to_diffsinger(result['all_tokens'], model.tokenizer)
-    print(diffsinger)
-    # print(result)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_009/last.ckpt", model, True)
+    result = process_audio('assets/test_wav/output/wenbie/vocals.wav', model, 
+                        #    '我和你吻别在无人的街要疯子笑我不能拒绝我和你吻别在狂乱的夜我滴心等着迎接伤悲'
+                           )
+    print(result)

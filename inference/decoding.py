@@ -598,7 +598,7 @@ class DecodingTask:
 
         # inference: implements the forward pass through the decoder, including kv caching
         self.inference = PyTorchInference(model, len(self.initial_tokens))
-        print('self.initial_tokens', self.initial_tokens)
+        # print('self.initial_tokens', self.initial_tokens)
 
         # sequence ranker: implements how to rank a group of sampled sequences
         self.sequence_ranker = MaximumLikelihoodRanker(options.length_penalty)
@@ -785,7 +785,7 @@ class DecodingTask:
 
         audio_features: Tensor = self._get_audio_features(mel)  # encoder forward pass
         tokens: Tensor = torch.tensor([self.initial_tokens]).repeat(n_audio, 1)
-        print('XXX1', self.decode_tokens(tokens))
+        # print('XXX1', self.decode_tokens(tokens))
 
         # detect language if requested, overwriting the language token
         languages, language_probs = self._detect_language(audio_features, tokens)
@@ -801,7 +801,7 @@ class DecodingTask:
 
         # repeat text tensors by the group size, for beam search or best-of-n sampling
         tokens = tokens.repeat_interleave(self.n_group, dim=0).to(audio_features.device)
-        print('XXX2', self.decode_tokens(tokens), self.n_group)
+        # print('XXX2', self.decode_tokens(tokens), self.n_group)
         # call the main sampling loop
         tokens, sum_logprobs, no_speech_probs = self._main_loop(audio_features, tokens)
 

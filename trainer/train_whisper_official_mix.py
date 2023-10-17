@@ -28,12 +28,12 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "opencpop_010"
+train_id = "opencpop_011"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-resume_checkpoint = "opencpop_009/last.ckpt"
+resume_checkpoint = "opencpop_011/last.ckpt"
 
 @dataclass
 class Config:
@@ -41,12 +41,12 @@ class Config:
     weight_decay = 1e-3
     adam_epsilon = 1e-7
     warmup_steps = 0
-    batch_size = 8
+    batch_size = 6
     precision = '16-mixed' # 32 for single, 16 for half (faster)
-    num_worker = 8 # = cpu cores
+    num_worker = 10 # = cpu cores
     pin_memory=True
     num_train_epochs = 50
-    gradient_accumulation_steps = 3
+    gradient_accumulation_steps = 4
     sample_rate = SAMPLE_RATE
     overfit_batches = 0 # 0 by default. Set to 0.005 for overfit sanity check
     log_every_n_steps = 1
@@ -55,7 +55,7 @@ class Config:
     num_sanity_val_steps = 10 # 1 by default
     enable_progress_bar = True # False for nohup
     stop_grad_on_encoder = True
-    num_concat = 4
+    num_concat = 6
     
 # 2. Trainer preparation
 cfg = Config()
@@ -184,5 +184,5 @@ trainer.fit(
     model, 
     train_dataloader, 
     val_dataloader, 
-    # ckpt_path = ckpt_path
+    ckpt_path = ckpt_path
     )

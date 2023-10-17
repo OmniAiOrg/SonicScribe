@@ -11,3 +11,4 @@ logs.bac/
 .lr_find_*.ckpt
 *.bac*/*
 assets/test_wav
+assets/audio_files/*
