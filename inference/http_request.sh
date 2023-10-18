@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 设置API的URL
-API_URL="http://localhost:33567/transcribe"
+API_URL="http://tencent.musicai.art:33567/transcribe"
 
 # 设置音频文件路径
 AUDIO_FILE_PATH='assets/test_wav/output/wenbie/vocals.wav'
