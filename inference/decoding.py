@@ -920,7 +920,7 @@ if __name__ == "__main__":
                         )
     
     model = WhisperOfficial('tiny').to(device)
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_009/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_013/last.ckpt", model, True)
 
     options = DecodingOptions(
         language='zh',
@@ -930,7 +930,7 @@ if __name__ == "__main__":
         patience=3,
         without_timestamps=False,
         temperature=0.1,
-        prompt='雨淋湿了天空 灰得 更讲究',
+        # prompt='雨淋湿了天空 灰得 更讲究',
         # prefix='<|singing|>'
     )
     for b in loader:

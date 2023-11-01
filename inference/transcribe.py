@@ -459,10 +459,11 @@ def process_audio(audio_file_path, model, initial_prompt=None):
 
     count = 0
     CUT_MAX_SECS = 15
+    CUT_MAX_HANZI = 25
     while len(audio) > 0:
         is_last = len(audio) < CUT_MAX_SECS * SAMPLE_RATE
         audio_cut = audio[:CUT_MAX_SECS * SAMPLE_RATE] if len(audio) >= CUT_MAX_SECS * SAMPLE_RATE else audio
-        retry_times = 3
+        retry_times = 5
         success_flag = False
         
         while not success_flag and retry_times > 0:
@@ -473,17 +474,21 @@ def process_audio(audio_file_path, model, initial_prompt=None):
                 language='zh', 
                 sample_len=500,
                 fp16=False,
-                beam_size=3,
+                beam_size=5,
                 without_timestamps=False,
-                temperature=0.3,
+                temperature=0.1,
                 condition_on_previous_text=True,
                 initial_prompt = initial_prompt,
             )
-            result = opencpop_to_list_of_tuple(result['all_tokens'], model.tokenizer)
+            try:
+                result = opencpop_to_list_of_tuple(result['all_tokens'], model.tokenizer)
+            except ValueError:
+                print("ValueError in opencpop_to_list_of_tuple")
+                continue
             success_flag = all([is_chinese(hanzi) for hanzi, _, _, _ in result])
         
-        if len(result) > 10 and not is_last:
-            result = result[:10]
+        if len(result) > CUT_MAX_HANZI and not is_last:
+            result = result[:CUT_MAX_HANZI]
         # elif len(result) > 8 and not is_last:
         #     result = result[:-2]
 
@@ -514,8 +519,8 @@ if __name__ == "__main__":
     # cli()
     from model.whisper_official import WhisperOfficial
     model= WhisperOfficial('tiny').to('cpu')
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_009/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_014/last.ckpt", model, True)
     result = process_audio('assets/test_wav/output/wenbie/vocals.wav', model, 
-                        #    '我和你吻别在无人的街要疯子笑我不能拒绝我和你吻别在狂乱的夜我滴心等着迎接伤悲'
+                        #    '我和你吻别在无人的街让风痴笑我不能拒绝我和你吻别在狂乱的夜我的心等着迎接伤悲'
                            )
     print(result)

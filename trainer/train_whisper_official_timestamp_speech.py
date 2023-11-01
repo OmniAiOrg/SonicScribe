@@ -27,17 +27,17 @@ data_config = all_config['BaseReader']
 
 SAMPLE_RATE = data_config['SAMPLE_RATE']
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-train_id = "timestamp_10"
+train_id = "speech_11"
 log_output_dir = "./logs"
 check_output_dir = "./artifacts"
 model_size = "tiny"
 train_name = "WhisperOfficial"
-resume_checkpoint = "timestamp_9/last.ckpt"
+resume_checkpoint = "opencpop_011/last.ckpt"
 
 @dataclass
 class Config:
-    learning_rate = 8.7e-6 #5.281682335805869e-05
-    weight_decay = 1e-3
+    learning_rate = 1e-6 #5.281682335805869e-05
+    weight_decay = 1e-4
     adam_epsilon = 1e-7
     warmup_steps = 0
     batch_size = 8
