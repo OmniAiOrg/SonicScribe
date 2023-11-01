@@ -112,7 +112,7 @@ if __name__ == '__main__':
     
     # 初始化机器学习模型
     model = WhisperOfficial('tiny').to('cpu')
-    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_011/last.ckpt", model, True)
+    initialize_whisper_official_from_checkpoint("artifacts/checkpoint/opencpop_014/last.ckpt", model, True)
 
     # 启动Flask应用
     app.run(port=33567, host='0.0.0.0')
