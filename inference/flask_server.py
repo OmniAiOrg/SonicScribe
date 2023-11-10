@@ -61,7 +61,7 @@ def transcribe_audio():
     audio_file = request.files['audio']
     audio_extension = audio_file.filename.rsplit('.', 1)[1].lower()
 
-    if audio_extension not in ['mp3', 'wav', 'webm']:
+    if audio_extension not in ['mp3', 'wav', 'webm', 'mp4']:
         return jsonify({"message": "Invalid audio file format."}), 400
 
     md5 = hashlib.md5(audio_file.read()).hexdigest()
